@@ -1,0 +1,23 @@
+{
+  "generator": "scripts/render-assets.mjs",
+  "version": 2,
+  "assets": [
+    "drone",
+    "ranger",
+    "lancer",
+    "mender",
+    "tank",
+    "wraith",
+    "hq",
+    "relay",
+    "refinery",
+    "barracks",
+    "factory",
+    "airfield",
+    "lab",
+    "turret",
+    "roster",
+    "app-icon"
+  ],
+  "geometrySource": "src/art.js"
+}

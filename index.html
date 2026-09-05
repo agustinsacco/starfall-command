@@ -1,0 +1,33 @@
+<meta charset="utf-8">
+<title>Starfall Command</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<link rel="stylesheet" href="src/styles.css">
+<link rel="stylesheet" href="src/desktop.css">
+<div class="app" id="app">
+<header class="topbar">
+ <div class="brand"><svg class="mark" viewBox="0 0 30 36" fill="none" aria-hidden="true"><path d="M15 1 28 9v17L15 35 2 26V9Z" stroke="currentColor"/><path d="m15 6 8 18-8-5-8 5Z" fill="currentColor"/><path d="M15 23v7" stroke="currentColor"/></svg><div><strong>STARFALL</strong><small>FRONTIER COMMAND</small></div></div>
+ <div class="divider"></div><div class="sector mono">SINGLE PLAYER <span style="color:var(--accent)">/</span> SKIRMISH<br><b>KESTREL BASIN</b> &nbsp; SECTOR 07</div>
+ <div class="resources" aria-label="Resources"><div class="resource minerals"><span class="symbol">◆</span><strong id="minerals">400</strong><small>MINERALS</small></div><div class="resource gas"><span class="symbol">⬡</span><strong id="gas">0</strong><small>AETHER GAS</small></div><div class="resource supply"><span class="symbol">◈</span><strong id="supply">8 / 22</strong><small>SUPPLY</small></div></div>
+ <div class="toolbar"><span class="clock mono" id="clock">00:00</span><button class="icon-btn" id="fullscreen-btn" title="Fullscreen (F11)" aria-label="Toggle fullscreen">⛶</button><button class="icon-btn" id="library-btn" title="Game library (F9)" aria-label="Game library">▤</button><button class="icon-btn" id="sound-btn" title="Toggle sound" aria-label="Enable sound">♪</button><button class="icon-btn" id="help-btn" title="Field manual (?)" aria-label="Field manual">?</button><button class="icon-btn" id="pause-btn" title="Pause (P)" aria-label="Pause game">Ⅱ</button></div>
+</header>
+<main class="battlefield" id="battlefield">
+ <canvas id="field" tabindex="0" aria-label="Battlefield. Drag to select units, right click to command. Use arrow keys to pan."></canvas>
+ <div class="mission"><div class="eyebrow">PRIMARY OBJECTIVE</div><h2>Break the opposing command.</h2><p id="objective">Establish your economy. Eliminate all rival structures.</p></div>
+ <div class="field-tools"><button id="army-btn" title="Select all combat units (F2)">ARMY <span id="army-count">2</span></button><button id="idle-btn" title="Select next idle drone (I)">IDLE <span id="idle-count">0</span></button><button id="speed-btn" title="Change simulation speed">1×</button><button id="home-btn" title="Center on your base">⌂ BASE</button></div>
+ <div class="messages" id="messages" aria-live="polite"></div><div class="command-mode" id="command-mode"></div><div class="camera-tag mono" id="camera-tag">TACTICAL VIEW · 100%</div>
+ <section class="modal-layer" id="modal" aria-label="Game menu"></section>
+</main>
+<section class="hud" aria-label="Command console">
+ <div class="hud-section"><div class="panel-label"><span class="eyebrow">TACTICAL UPLINK</span><span class="online">LIVE</span></div><div class="mini-wrap"><canvas id="minimap" aria-label="Minimap. Click to move the camera." tabindex="0"></canvas></div><div class="mini-footer mono"><span>KESTREL BASIN</span><span>2688 × 1792</span></div></div>
+ <div class="hud-section"><div class="panel-label"><span class="eyebrow" id="selection-label">SELECTION / 01</span><span class="online" id="affiliation">VANGUARD</span></div><div class="selection-top"><div class="portrait"><canvas id="portrait" width="166" height="166"></canvas></div><div class="selection-info"><h3 id="selection-name">Command Spire</h3><div class="selection-role" id="selection-role">ECONOMY · COMMAND STRUCTURE</div><div class="health-track"><div class="health-fill" id="health-fill"></div></div><div class="health-label"><span id="health-label">1800 / 1800 HP</span><span id="order-label">ONLINE</span></div><div class="selection-stats" id="selection-stats"></div></div></div><div id="selection-extra"></div></div>
+ <div class="hud-section commands"><div class="command-header"><span class="eyebrow" id="command-title">COMMAND PROTOCOLS</span><div class="command-tabs" id="command-tabs"></div></div><div class="command-grid" id="commands"></div></div>
+</section>
+<footer class="statusbar"><div class="hints"><span><kbd>LMB</kbd> SELECT</span><span><kbd>RMB</kbd> COMMAND</span><span><kbd>A</kbd> ATTACK-MOVE</span><span><kbd>↑↓←→</kbd> PAN</span><span><kbd>?</kbd> FIELD MANUAL</span></div><span class="build mono"><span id="operation-title">VANGUARD NETWORK</span> <span style="color:var(--accent)">●</span> &nbsp; <span id="save-status">AUTOSAVE READY</span> / 2.0</span></footer>
+</div><div id="tooltip" class="tooltip" hidden></div>
+<script src="src/simulation.js"></script>
+<script src="src/save-format.js"></script>
+<script src="src/save-client.js"></script>
+<script src="src/operations.js"></script>
+<script src="src/art.js"></script>
+<script src="src/app.js"></script>

@@ -1,0 +1,23 @@
+{
+  "name": "starfall-command",
+  "version": "2.0.0",
+  "productName": "Starfall Command",
+  "private": true,
+  "description": "Fullscreen desktop RTS with persistent operations and procedural battlefield art",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:electron": "node tests/electron.mjs",
+    "package:mac": "node scripts/package-mac.mjs",
+    "assets": "node scripts/render-assets.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "44.2.0"
+  }
+}
