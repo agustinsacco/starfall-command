@@ -3,3 +3,12 @@ dist/
 .DS_Store
 *.log
 coverage/
+release/
+.env
+.env.*
+*.p12
+*.pfx
+*.pem
+*.key
+*.starfall.json
+operations/

@@ -29,7 +29,7 @@ export async function launchNative(profile, executable = null) {
   });
   function call(method, params = {}) { return new Promise((resolve, reject) => { const id = ++nextId, timer = setTimeout(() => { pending.delete(id); reject(Error('DevTools timeout: ' + method)); }, 15000); pending.set(id, { resolve, reject, timer }); ws.send(JSON.stringify({ id, method, params })); }); }
   async function evaluate(expression) { const r = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, userGesture: true }); if (r.exceptionDetails) throw Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; }
-  async function wait(expression, message, timeout = 15000) { const until = Date.now() + timeout; while (Date.now() < until) { if (await evaluate(expression)) return; await sleep(100); } throw Error('Timed out: ' + message + '\n' + logs); }
+  async function wait(expression, message, timeout = 15000) { const until = Date.now() + timeout; while (Date.now() < until) { if (await evaluate(expression)) return; await sleep(100); } const state = await evaluate('({focused:document.hasFocus(),visibility:document.visibilityState,paused:globalThis.starfallApp?.paused,time:globalThis.starfallApp?.game?.time,operation:globalThis.starfallApp?.operation,status:document.querySelector("#save-status")?.textContent})').catch(() => null); throw Error('Timed out: ' + message + '\n' + JSON.stringify(state) + '\n' + logs); }
   async function click(selector) { const p = await evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing element');e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`); await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...p, button: 'left', clickCount: 1 }); await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...p, button: 'left', clickCount: 1 }); }
   async function key(key, modifiers = 0, hold = 0) {
     const windowsVirtualKeyCode = key === 'F2' ? 113 : key === 'ArrowRight' ? 39 : key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0;
@@ -42,6 +42,8 @@ export async function launchNative(profile, executable = null) {
     if (child.exitCode === null) { child.kill('SIGTERM'); await Promise.race([exited, sleep(3000)]); if (child.exitCode === null) { child.kill('SIGKILL'); await exited; } }
   }
   await call('Runtime.enable'); await call('Page.enable');
+  // Keep the automation page active when the operator switches apps. Production pause-on-blur is unchanged.
+  await call('Emulation.setFocusEmulationEnabled', { enabled: true });
   const duplicateInstance = () => new Promise((resolve, reject) => {
     const second = spawn(binary, launchArgs, { env, stdio: 'ignore' });
     const timer = setTimeout(() => { second.kill('SIGKILL'); reject(Error('Duplicate instance did not exit')); }, 8000);

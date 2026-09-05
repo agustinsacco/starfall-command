@@ -2,10 +2,24 @@
 
 An original single-player sci-fi RTS with an Electron desktop shell, persistent named operations, and procedurally generated 2.5D battlefield art. This release upgrades the existing skirmish, not StarCraft's campaigns, factions, or complete feature set.
 
-## Play
+## Install
+
+Download from [GitHub Releases](https://github.com/agustinsacco/starfall-command/releases/latest): macOS DMG/ZIP (Apple Silicon or Intel), Linux AppImage/DEB (x64 or arm64), or Windows x64 EXE. No Node installation is needed to play.
+
+macOS / Linux:
 
 ```sh
-npm install
+curl -fsSL https://github.com/agustinsacco/starfall-command/releases/latest/download/install.sh | sh
+```
+
+The installer verifies checksums and preserves saved operations. Save and quit before upgrading. Mac builds are ad-hoc signed unless Apple credentials are configured; macOS may require **Privacy & Security → Open Anyway**. Windows builds are unsigned. See the [install, signing, release and rollback guide](docs/RELEASING.md).
+
+Every successful main-push CI build publishes a complete installer set, unless superseded or deliberately skipped. Re-run the installer to update; no in-app updater is included.
+
+## Play from source
+
+```sh
+npm ci
 npm start
 ```
 
@@ -21,7 +35,7 @@ npm run package:mac
 open "dist/Starfall Command.app"
 ```
 
-The `.app` contains Electron and all game resources and needs no Node installation to run. It is built for the current Mac's architecture and ad-hoc signed for local use. It is **not notarized for public distribution**. The packager verifies its signature and only replaces an existing known Starfall build, not unrelated applications. Windows/Linux installers are not included or tested.
+The `.app` contains Electron and all game resources and needs no Node installation to run. It is built for the current Mac's architecture and ad-hoc signed for local use. It is **not notarized for public distribution**. The packager verifies its signature and only replaces an existing known Starfall build, not unrelated applications. For CI-style installable packages in `release/`, use `npm run dist:mac`, `npm run dist:linux`, or `npm run dist:win` on the corresponding platform.
 
 `index.html` remains a browser fallback: keep it with `src/` and `assets/`. Deployment requests browser fullscreen where permitted; use the fullscreen button if the browser denies it. Add `?windowed=1` to suppress the browser request. Browser saves and desktop saves are separate; use export/import to transfer them.
 
@@ -86,7 +100,7 @@ See `assets/generated/roster.png` for the full component library and individual 
 
 ## Verify
 
-Requires Node.js 22+ for development. Electron is the only third-party dependency.
+Requires Node.js 22+ for development. Electron and electron-builder are pinned development dependencies; the game itself uses no third-party runtime modules.
 
 ```sh
 npm run check
@@ -96,6 +110,7 @@ npm run test:electron
 ```
 
 - **29 simulation/persistence tests:** original gameplay coverage plus exact serialized-state equality, identical subsequent simulation, legacy migration, named-game isolation, concurrent writes, backup recovery, disk failure, portable import/export, and path validation.
+- **8 release/installer tests:** versioning, trusted CI source, skip trailers, all-platform asset completeness, package identity, checksums, OS/architecture detection, and safe installer updates/failures. The two POSIX installer tests run on macOS/Linux, not Windows.
 - **Chrome smoke test:** real mouse/keyboard interactions, generated rendering, named saves, exact restoration, live production, error handling, light/dark theme, and a true 390px viewport.
 - **Native Electron smoke test:** actual display-filling window, UTF-8, renderer isolation, restricted protocol/IPC, single-instance save ownership, real save-on-quit/process exit/relaunch, exact state restore, multiple games, 30-second autosave, rename escaping, checkpoint creation/deletion, and corrupt-primary recovery.
 
@@ -105,7 +120,7 @@ Tests use temporary profiles and never access your real operation directory. The
 STARFALL_EXECUTABLE="$PWD/dist/Starfall Command.app/Contents/MacOS/Electron" npm run test:electron
 ```
 
-Native file-picker interaction and audio quality are not automated; portable save contents are tested at the storage layer. Only macOS and installed Chrome were exercised here.
+Native file-picker interaction and audio quality are not automated; portable save contents are tested at the storage layer. CI runs core tests and builds installers on all three operating systems. The full native UI and Chrome suites are Mac-only; release publishing requires all platform jobs to pass.
 
 ## Structure
 
@@ -115,7 +130,9 @@ Native file-picker interaction and audio quality are not automated; portable sav
 - `src/app.js` — game controls and presentation.
 - `src/operations.js`, `src/save-client.js`, `src/save-format.js` — library UI, browser/native adapter, portable schema and integrity checks.
 - `electron/main.cjs`, `electron/preload.cjs`, `electron/save-store.cjs` — sandboxed desktop shell, narrow IPC bridge, atomic filesystem storage.
-- `scripts/` — source checks, reproducible component generation and local macOS packaging.
+- `scripts/` — source checks, component generation, packaging, installer, and verified release publication.
+- `electron-builder.json`, `.github/workflows/` — allowlisted cross-platform packages, CI, and CI-gated releases.
+- `docs/RELEASING.md` — install/update, signing, retry, and rollback runbook.
 - `tests/` — game, persistence, browser and native-process verification.
 
 The desktop renderer has Node integration disabled, context isolation and sandboxing enabled, a strict local-script CSP, no arbitrary IPC bridge, blocked external navigation/new windows, and access only to the local game asset protocol. Save filenames are validated UUIDs, not renderer-controlled paths. A single-instance lock prevents two desktop processes from competing for the same save files.

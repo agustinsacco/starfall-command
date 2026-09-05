@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.starfall.command",
+  "productName": "Starfall Command",
+  "directories": { "output": "release", "buildResources": "assets/generated" },
+  "files": ["index.html", "src/**", "electron/**", "assets/**", "README.md", "package.json"],
+  "asar": true,
+  "npmRebuild": false,
+  "mac": {
+    "category": "public.app-category.strategy-games",
+    "icon": "assets/generated/app-icon.png",
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "artifactName": "starfall-command-${version}-mac-${arch}.${ext}",
+    "target": ["dmg", "zip"]
+  },
+  "linux": {
+    "icon": "assets/generated/app-icon.png",
+    "category": "Game",
+    "synopsis": "Single-player sci-fi real-time strategy",
+    "executableName": "starfall-command",
+    "artifactName": "starfall-command-${version}-linux-${arch}.${ext}",
+    "target": ["AppImage", "deb"]
+  },
+  "win": {
+    "icon": "assets/generated/app-icon.png",
+    "artifactName": "starfall-command-${version}-win-${arch}.${ext}",
+    "target": ["nsis"]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "agustinsacco",
+    "repo": "starfall-command",
+    "releaseType": "draft"
+  }
+}

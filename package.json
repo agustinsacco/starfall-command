@@ -3,6 +3,10 @@
   "version": "2.0.0",
   "productName": "Starfall Command",
   "private": true,
+  "homepage": "https://github.com/agustinsacco/starfall-command",
+  "repository": { "type": "git", "url": "https://github.com/agustinsacco/starfall-command.git" },
+  "author": { "name": "Agustin Sacco", "email": "5874561+agustinsacco@users.noreply.github.com" },
+  "license": "UNLICENSED",
   "description": "Fullscreen desktop RTS with persistent operations and procedural battlefield art",
   "main": "electron/main.cjs",
   "scripts": {
@@ -12,12 +16,17 @@
     "test:electron": "node tests/electron.mjs",
     "package:mac": "node scripts/package-mac.mjs",
     "assets": "node scripts/render-assets.mjs",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "dist:mac": "node scripts/dist.mjs mac",
+    "dist:linux": "node scripts/dist.mjs linux",
+    "dist:win": "node scripts/dist.mjs win",
+    "release:metadata": "node scripts/release-metadata.mjs"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
-    "electron": "44.2.0"
+    "electron": "44.2.0",
+    "electron-builder": "26.15.3"
   }
 }

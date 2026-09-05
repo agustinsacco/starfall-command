@@ -18,6 +18,8 @@ try {
   driver = await launchNative(profile, process.env.STARFALL_EXECUTABLE);
   await driver.wait('(async()=> (await starfallDesktop.info()).fullscreen)()', 'native fullscreen transition');
   const info = await driver.evaluate('starfallDesktop.info()');
+  const sourcePackage = JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(info.version, process.env.STARFALL_EXPECTED_VERSION || sourcePackage.version);
   assert.equal(info.saveDirectory, path.join(profile, 'operations'));
   assert.equal(info.visible, true);
   const viewport = await driver.evaluate('({w:innerWidth,h:innerHeight,sw:screen.width,sh:screen.height})');
@@ -83,7 +85,7 @@ try {
   await driver.wait('starfallApp.operation?.name === "Native Expedition Beta" && !starfallApp.paused', 'independent second game');
   const beta = await driver.evaluate('starfallApp.operation.id'); assert.notEqual(beta, alpha);
   const beforeAuto = await driver.evaluate('starfallApp.operation.revision');
-  await driver.wait(`starfallApp.operation.revision > ${beforeAuto} && starfallApp.operation.time > 10`, 'automatic on-disk save without clicking Save', 40000);
+  await driver.wait(`(()=>{if(starfallApp.paused)throw Error('Running autosave fixture was paused; focused='+document.hasFocus());return starfallApp.operation.revision > ${beforeAuto} && starfallApp.operation.time > 10;})()`,  'automatic on-disk save without clicking Save', 40000);
   const rows = await driver.evaluate('starfallDesktop.saves.list()'); assert.equal(rows.length, 2);
   assert.equal(rows.find(r => r.id === beta).difficulty, 'hard');
   assert.equal(rows.find(r => r.id === beta).mapSeed, 104729);

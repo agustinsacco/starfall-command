@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: meta
+        run: npm run release:metadata
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata
+          path: release/release-info.json
+          retention-days: 1
+          if-no-files-found: error
+
+  build:
+    name: Test and package (${{ matrix.platform }})
+    needs: metadata
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
+    env:
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - name: Linux package tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libarchive-tools rpm
+      # No release write token or signing secrets in PR builds.
+      - name: Package installers
+        env:
+          CSC_LINK: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && runner.os == 'macOS' && secrets.MAC_CERT_P12 || '' }}
+          CSC_KEY_PASSWORD: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && runner.os == 'macOS' && secrets.MAC_CERT_PASSWORD || '' }}
+          APPLE_ID: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && runner.os == 'macOS' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && runner.os == 'macOS' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
+        run: npm run dist:${{ matrix.platform }}
+      - name: Verify complete platform asset set
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: node scripts/verify-release.mjs
+      - name: Browser gameplay
+        if: runner.os == 'macOS'
+        run: npm run test:browser
+      - name: Packaged Mac gameplay and save-on-quit
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCH=$(node -p process.arch)
+          DIR=mac
+          if [ "$ARCH" = arm64 ]; then DIR=mac-arm64; fi
+          export STARFALL_EXECUTABLE="$PWD/release/$DIR/Starfall Command.app/Contents/MacOS/Starfall Command"
+          export STARFALL_EXPECTED_VERSION="$RELEASE_VERSION"
+          npm run test:electron
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
+            release/*.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
