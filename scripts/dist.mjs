@@ -10,6 +10,7 @@ const options = process.argv.slice(3);
 if (options.some(arg => !['--arm64', '--x64', '--dir'].includes(arg))) throw Error('Unsupported packaging option');
 const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const version = assertVersion(process.env.RELEASE_VERSION || pkg.version), env = { ...process.env };
+delete env.CSC_FOR_PULL_REQUEST;
 const args = [require.resolve('electron-builder/cli.js'), '--config', 'electron-builder.json', '--publish', 'never', `--${platform}`, `--config.extraMetadata.version=${version}`];
 args.push(...(options.some(arg => ['--arm64', '--x64'].includes(arg)) ? [] : platform === 'win' ? ['--x64'] : ['--arm64', '--x64']), ...options);
 // Missing GitHub secrets arrive as empty strings. Never let the builder interpret one as a certificate path.
@@ -20,7 +21,11 @@ if (platform === 'mac' && env.CSC_LINK) {
 } else {
   for (const key of appleKeys) delete env[key];
   env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
-  if (platform === 'mac') args.push('--config.mac.identity=-', '--config.mac.notarize=false');
+  if (platform === 'mac') {
+    // electron-builder otherwise skips even identity=- on PRs. Safe ONLY after removing credentials above.
+    env.CSC_FOR_PULL_REQUEST = 'true';
+    args.push('--config.mac.identity=-', '--config.mac.notarize=false');
+  }
 }
 execFileSync(process.execPath, args, { env, stdio: 'inherit', timeout: 25 * 60 * 1000 });
 if (platform === 'mac') {
