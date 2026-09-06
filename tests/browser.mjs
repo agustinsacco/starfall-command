@@ -102,13 +102,17 @@ try {
   await click('#home-btn');
   const worker = await evaluate('starfallApp.game.own(0,"drone")[0]');
   await worldClick(worker.x, worker.y);
-  const patch = await evaluate(`starfallApp.game.nearestResource(starfallApp.game.entity(${worker.id}), 'mineral')`);
+  // Drones roam, so assert against whichever drone the click actually selected.
+  const picked = await evaluate('(()=>{const e=starfallApp.game.entity(starfallApp.selection[0]);return e&&{id:e.id,type:e.type};})()');
+  assert.equal(picked?.type, 'drone', 'clicking the drone cluster selects a drone');
+  const patch = await evaluate(`(()=>{const g=starfallApp.game,u=g.entity(${picked.id});return g.resources.filter(r=>r.type==='mineral'&&r.amount>0&&!g.entities.some(e=>e.hp>0&&Math.hypot(e.x-r.x,e.y-r.y)<40)).sort((a,b)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(b.x-u.x,b.y-u.y)).map(r=>({id:r.id,x:r.x,y:r.y}))[0];})()`);
+  assert.ok(patch, 'an unoccupied mineral crystal is available');
   await worldClick(patch.x, patch.y, 'right');
-  assert.equal(await evaluate(`starfallApp.game.entity(${worker.id}).order.type`), 'gather');
+  assert.equal(await evaluate(`starfallApp.game.entity(${picked.id}).order.type`), 'gather');
   const gatherMark = await evaluate('starfallApp.marks.at(-1)');
   assert.equal(gatherMark?.kind, 'gather');
   assert.equal(gatherMark?.target, patch.id, 'the gather marker links the drone to its assigned patch');
-  assert.deepEqual(gatherMark?.units, [worker.id]);
+  assert.deepEqual(gatherMark?.units, [picked.id]);
   await key('b');
   await wait(`!!document.querySelector('[data-command="Supply Relay"]')`, 'construction palette');
   await click('[data-command="Supply Relay"]');
