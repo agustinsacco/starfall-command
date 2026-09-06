@@ -76,21 +76,43 @@ try {
   await key('1', 2);
   await key('a'); await worldClick(1040, 1110);
   assert.equal(await evaluate('starfallApp.selection.every(id => starfallApp.game.entity(id).order.type === "attackmove")'), true);
+  assert.equal(await evaluate('starfallApp.marks.at(-1)?.kind'), 'attackmove', 'attack-move click leaves an acknowledgement marker');
   await key('s');
   await key('1');
   assert.equal(await evaluate('starfallApp.selection.length'), 2);
   await worldClick(1100, 1130, 'right');
   assert.equal(await evaluate('starfallApp.selection.every(id => starfallApp.game.entity(id).order.type === "move")'), true);
+  assert.equal(await evaluate('starfallApp.marks.at(-1)?.kind'), 'move');
   const originalCamera = await evaluate('starfallApp.camera.x'); await key('ArrowRight', 0, 220);
   assert.ok(await evaluate('starfallApp.camera.x') > originalCamera);
-  const beforeZoom = await evaluate('starfallApp.camera.z');
+  const wheel = init => evaluate(`document.querySelector('#field').dispatchEvent(new WheelEvent('wheel',Object.assign({bubbles:true,cancelable:true,clientX:800,clientY:350},${JSON.stringify(init)})))`);
+  const beforePan = await evaluate('starfallApp.camera');
+  await wheel({ deltaX: -120, deltaY: 87.5 });
+  const afterPan = await evaluate('starfallApp.camera');
+  assert.ok(afterPan.x < beforePan.x && afterPan.y > beforePan.y, 'two-finger trackpad scroll pans the battlefield');
+  assert.equal(afterPan.z, beforePan.z, 'trackpad scroll pans without zooming');
+  await wheel({ deltaY: 6, ctrlKey: true });
+  const afterPinch = await evaluate('starfallApp.camera.z');
+  assert.ok(afterPinch < afterPan.z, 'pinch gestures zoom');
   await call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 800, y: 350, deltaX: 0, deltaY: -100 });
-  await sleep(100); assert.ok(await evaluate('starfallApp.camera.z') > beforeZoom);
-  console.log('PASS army, groups, attack-move, right-click movement, pan, and zoom');
+  await sleep(100);
+  assert.ok(await evaluate('starfallApp.camera.z') > afterPinch, 'discrete mouse-wheel notches still zoom');
+  console.log('PASS army, groups, order feedback markers, trackpad pan, pinch zoom, and wheel zoom');
 
   await click('#home-btn');
   const worker = await evaluate('starfallApp.game.own(0,"drone")[0]');
   await worldClick(worker.x, worker.y);
+  // Drones roam, so assert against whichever drone the click actually selected.
+  const picked = await evaluate('(()=>{const e=starfallApp.game.entity(starfallApp.selection[0]);return e&&{id:e.id,type:e.type};})()');
+  assert.equal(picked?.type, 'drone', 'clicking the drone cluster selects a drone');
+  const patch = await evaluate(`(()=>{const g=starfallApp.game,u=g.entity(${picked.id});return g.resources.filter(r=>r.type==='mineral'&&r.amount>0&&!g.entities.some(e=>e.hp>0&&Math.hypot(e.x-r.x,e.y-r.y)<40)).sort((a,b)=>Math.hypot(a.x-u.x,a.y-u.y)-Math.hypot(b.x-u.x,b.y-u.y)).map(r=>({id:r.id,x:r.x,y:r.y}))[0];})()`);
+  assert.ok(patch, 'an unoccupied mineral crystal is available');
+  await worldClick(patch.x, patch.y, 'right');
+  assert.equal(await evaluate(`starfallApp.game.entity(${picked.id}).order.type`), 'gather');
+  const gatherMark = await evaluate('starfallApp.marks.at(-1)');
+  assert.equal(gatherMark?.kind, 'gather');
+  assert.equal(gatherMark?.target, patch.id, 'the gather marker links the drone to its assigned patch');
+  assert.deepEqual(gatherMark?.units, [picked.id]);
   await key('b');
   await wait(`!!document.querySelector('[data-command="Supply Relay"]')`, 'construction palette');
   await click('[data-command="Supply Relay"]');
@@ -100,7 +122,8 @@ try {
   await worldClick(site.x, site.y);
   assert.equal(await evaluate('starfallApp.game.own(0,"relay").length'), priorRelays + 1);
   assert.equal(await evaluate('starfallApp.mode'), null);
-  console.log('PASS real construction palette and battlefield placement');
+  assert.equal(await evaluate('starfallApp.marks.at(-1)?.kind'), 'build', 'placing a structure acknowledges the construction order');
+  console.log('PASS real construction palette, battlefield placement, and build feedback');
 
   await key('p'); assert.equal(await evaluate('starfallApp.paused'), true);
   const frozen = await evaluate('starfallApp.game.time'); await sleep(250);

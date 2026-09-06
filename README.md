@@ -105,7 +105,8 @@ Press **?** in-game for the field manual. Mouse and keyboard recommended.
 | **S** / **H** / **X** | Stop / hold / toggle Bastion siege |
 | **F2** / **I** | Select your combat army / next idle drone |
 | Ctrl/Cmd + **1–5** / **1–5** | Assign / recall a control group |
-| Arrows / middle-drag / wheel | Pan / pan / zoom |
+| Arrows / middle-drag / two-finger scroll | Pan the map |
+| Pinch, mouse wheel, or Cmd/Ctrl + scroll | Zoom |
 | Space / **P** | Center selection / pause |
 | **F5** / **F9** / **F11** | Save / game library / fullscreen |
 
