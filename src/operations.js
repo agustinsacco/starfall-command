@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const F = StarfallSaveFormat, { Game, D } = Starfall;
+  const F = StarfallSaveFormat, { Game } = Starfall;
   const esc = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const duration = time => `${String(Math.floor(time / 60)).padStart(2, '0')}:${String(Math.floor(time % 60)).padStart(2, '0')}`;
   const difficulty = { easy: 'Cadet', normal: 'Commander', hard: 'Veteran' };

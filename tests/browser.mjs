@@ -24,7 +24,10 @@ const server = createServer(async (req, res) => {
 });
 server.listen(0, '127.0.0.1'); await once(server, 'listening');
 const origin = `http://127.0.0.1:${server.address().port}`;
-const child = spawn(chromePath, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--remote-debugging-port=0', `--user-data-dir=${path.join(temp, 'profile')}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+const flags = ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--remote-debugging-port=0', `--user-data-dir=${path.join(temp, 'profile')}`, 'about:blank'];
+// Hosted Linux runners block Chrome's unprivileged user namespaces; local runs keep the sandbox.
+if (process.platform === 'linux' && process.env.CI) flags.unshift('--no-sandbox');
+const child = spawn(chromePath, flags, { stdio: ['ignore', 'ignore', 'pipe'] });
 let ws, id = 0, errors = [], stderr = '';
 const pending = new Map();
 try {

@@ -49,7 +49,7 @@ class SaveStore {
     await this.init(); F.assertId(input.id);
     let previous = null;
     try { previous = await this.readInternal(input.id); }
-    catch (error) { if (error.code !== 'ENOENT') throw Error('Refusing to overwrite an unreadable save. Restore its backup or create a new operation.'); }
+    catch (error) { if (error.code !== 'ENOENT') throw Error('Refusing to overwrite an unreadable save. Restore its backup or create a new operation.', { cause: error }); }
     const made = await F.makeRecord(input, previous?.record), text = JSON.stringify(made.record);
     if (Buffer.byteLength(text) > F.MAX_BYTES) throw Error('Save exceeds the 16 MB limit');
     const file = this.file(input.id);

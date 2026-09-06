@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, writeFile, copyFile, rm } from 'node:fs/promises';
+import { appendFile, mkdtemp, mkdir, readFile, writeFile, copyFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { REPO, expectedAssets, trustedRun, metadata, skipRelease, verifyInstallers, writeChecksums, sha256 } from './release-contract.mjs';
@@ -32,7 +32,10 @@ async function publish() {
 
   const temp = await mkdtemp(path.join(os.tmpdir(), 'starfall-publish-'));
   try {
-    const incoming = path.join(temp, 'incoming'), out = path.join(temp, 'out'); await mkdir(out);
+    // RELEASE_PUBLISH_DIR keeps the verified upload set for post-publish provenance attestation.
+    const incoming = path.join(temp, 'incoming');
+    const out = process.env.RELEASE_PUBLISH_DIR ? path.resolve(process.env.RELEASE_PUBLISH_DIR) : path.join(temp, 'out');
+    await mkdir(out, { recursive: true });
     gh(['run', 'download', String(run.id), '--repo', REPO, '--dir', incoming, '--pattern', 'installers-*', '--pattern', 'release-metadata']);
     const tested = JSON.parse(await readFile(path.join(incoming, 'release-metadata/release-info.json'), 'utf8'));
     if (tested.sha !== current.sha || tested.version !== current.version) throw Error('CI artifact provenance/version mismatch');
@@ -61,6 +64,7 @@ async function publish() {
     gh(['release', 'edit', tag, '--repo', REPO, '--draft=false', '--latest', '--notes-file', notesFile]);
     const published = api(`releases/tags/${tag}`);
     if (published.draft || published.assets.length !== names.length) throw Error('Release did not become public with its full asset set');
+    if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, 'published=true\n');
     console.log('Published and verified: ' + published.html_url);
   } finally { await rm(temp, { recursive: true, force: true }); }
 }

@@ -9,30 +9,53 @@ on:
 permissions:
   contents: read
 
+# Never cancel a main push: each one is a release candidate. PRs supersede themselves.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm audit
+      - name: Workflow lint (pinned actionlint)
+        run: |
+          curl -fsSLO https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz" | sha256sum -c -
+          tar xzf actionlint_1.7.12_linux_amd64.tar.gz actionlint
+          ./actionlint -color
+
   metadata:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
       - id: meta
         run: npm run release:metadata
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: release-metadata
           path: release/release-info.json
-          retention-days: 1
+          retention-days: 7
           if-no-files-found: error
 
   build:
@@ -46,20 +69,33 @@ jobs:
         include:
           - os: macos-latest
             platform: mac
+            electron-cache: |
+              ~/Library/Caches/electron
+              ~/Library/Caches/electron-builder
           - os: ubuntu-latest
             platform: linux
+            electron-cache: |
+              ~/.cache/electron
+              ~/.cache/electron-builder
           - os: windows-latest
             platform: win
+            electron-cache: |
+              ~\AppData\Local\electron\Cache
+              ~\AppData\Local\electron-builder\Cache
     env:
       RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ matrix.electron-cache }}
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
       - run: npm run check
       - run: npm test
@@ -82,7 +118,9 @@ jobs:
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: node scripts/verify-release.mjs
       - name: Browser gameplay
-        if: runner.os == 'macOS'
+        if: runner.os != 'Windows'
+        env:
+          CHROME_PATH: ${{ runner.os == 'Linux' && '/usr/bin/google-chrome' || '' }}
         run: npm run test:browser
       - name: Packaged Mac gameplay and save-on-quit
         if: runner.os == 'macOS'
@@ -95,7 +133,7 @@ jobs:
           export STARFALL_EXECUTABLE="$PWD/release/$DIR/Starfall Command.app/Contents/MacOS/Starfall Command"
           export STARFALL_EXPECTED_VERSION="$RELEASE_VERSION"
           npm run test:electron
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: installers-${{ matrix.platform }}
           path: |
@@ -106,4 +144,4 @@ jobs:
             release/*.exe
           if-no-files-found: error
           compression-level: 0
-          retention-days: 1
+          retention-days: 7

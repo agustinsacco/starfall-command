@@ -1,0 +1,7 @@
+node_modules
+.pidex
+package-lock.json
+assets/generated
+docs/screenshots
+release
+dist

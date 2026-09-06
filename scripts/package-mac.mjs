@@ -15,7 +15,7 @@ await fs.mkdir(dist, { recursive: true });
 try {
   const previous = JSON.parse(await fs.readFile(path.join(destination, 'Contents/Resources/app/package.json'), 'utf8'));
   if (previous.name !== pkg.name) throw Error('Refusing to replace an unrelated application');
-} catch (error) { if (error.code !== 'ENOENT') throw error; if (await fs.stat(destination).then(() => true, () => false)) throw Error('Destination exists but is not a known Starfall build'); }
+} catch (error) { if (error.code !== 'ENOENT') throw error; if (await fs.stat(destination).then(() => true, () => false)) throw Error('Destination exists but is not a known Starfall build', { cause: error }); }
 const staging = path.join(dist, '.starfall-build-' + randomUUID()), candidate = path.join(staging, 'Starfall Command.app'), backup = path.join(staging, 'previous.app');
 await fs.mkdir(staging);
 const run = (bin, args) => execFileSync(bin, args, { stdio: 'pipe', timeout: 120000 });

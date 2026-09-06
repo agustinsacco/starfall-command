@@ -4,14 +4,23 @@
   "productName": "Starfall Command",
   "private": true,
   "homepage": "https://github.com/agustinsacco/starfall-command",
-  "repository": { "type": "git", "url": "https://github.com/agustinsacco/starfall-command.git" },
-  "author": { "name": "Agustin Sacco", "email": "5874561+agustinsacco@users.noreply.github.com" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agustinsacco/starfall-command.git"
+  },
+  "author": {
+    "name": "Agustin Sacco",
+    "email": "5874561+agustinsacco@users.noreply.github.com"
+  },
   "license": "UNLICENSED",
   "description": "Fullscreen desktop RTS with persistent operations and procedural battlefield art",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/*.test.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test:browser": "node tests/browser.mjs",
     "test:electron": "node tests/electron.mjs",
     "package:mac": "node scripts/package-mac.mjs",
@@ -26,7 +35,11 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "electron": "44.2.0",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.15.3",
+    "eslint": "10.10.0",
+    "globals": "17.12.0",
+    "prettier": "3.9.6"
   }
 }

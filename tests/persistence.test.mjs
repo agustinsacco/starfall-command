@@ -6,7 +6,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { Game, D } = require('../src/simulation.js');
+const { Game } = require('../src/simulation.js');
 const F = require('../src/save-format.js');
 const { SaveStore } = require('../electron/save-store.cjs');
 const tick = (g, n) => { for (let i = 0; i < n; i++) g.update(.05); };

@@ -2,7 +2,7 @@
 (() => {
 const {Game,D,UP,W,H,TILE,COLS,ROWS,DIST,clamp}=Starfall;
 const $=s=>document.querySelector(s),canvas=$('#field'),ctx=canvas.getContext('2d'),mini=$('#minimap'),mc=mini.getContext('2d'),portrait=$('#portrait'),pc=portrait.getContext('2d');
-let game=new Game(),started=false,paused=true,speed=1,selection=[game.own(0,'hq')[0].id],mode=null,tab='actions',difficulty='normal',modalKind='briefing',sound=false,audio=null,camera={x:650,y:1160,z:.9},cw=1000,ch=600,dpr=1,pointer={x:0,y:0,world:{x:0,y:0},inside:false},drag=null,keys=new Set(),groups={},lastGroup={key:'',time:0},idleIndex=0,lastUI=0,accumulator=0,lastFrame=0,toastId=0,confirmRestart=false;
+let game=new Game(),started=false,paused=true,speed=1,selection=[game.own(0,'hq')[0].id],mode=null,tab='actions',difficulty='normal',modalKind='briefing',sound=false,audio=null,camera={x:650,y:1160,z:.9},cw=1000,ch=600,dpr=1,pointer={x:0,y:0,world:{x:0,y:0},inside:false},drag=null,keys=new Set(),groups={},lastGroup={key:'',time:0},idleIndex=0,lastUI=0,accumulator=0,lastFrame=0;
 const palette=['#9cdab5','#e89570'];const fog=document.createElement('canvas');fog.width=COLS;fog.height=ROWS;const fc=fog.getContext('2d');const bg=document.createElement('canvas');bg.width=W;bg.height=H;const bc=bg.getContext('2d');
 function terrain(){StarfallArt.terrain(bc,game);}
 const {building,unit,resource}=StarfallArt;
