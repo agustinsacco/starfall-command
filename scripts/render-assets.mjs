@@ -37,7 +37,17 @@ try {
     if (bytes.length < 500 || bytes.readUInt32BE(0) !== 0x89504e47) throw Error('Asset rendering failed: ' + name);
     await fs.writeFile(new URL(name + '.png', output), bytes);
   }
-  await fs.writeFile(new URL('manifest.json', output), JSON.stringify({ generator: 'scripts/render-assets.mjs', version: 2, assets: Object.keys(assets), geometrySource: 'src/art.js' }, null, 2) + '\n');
+  await fs.writeFile(
+    new URL('manifest.json', output),
+    JSON.stringify(
+      { generator: 'scripts/render-assets.mjs', version: 2, assets: Object.keys(assets), geometrySource: 'src/art.js' },
+      null,
+      2,
+    ) + '\n',
+  );
   console.log(`Generated ${Object.keys(assets).length} PNG assets in assets/generated/ from the actual game renderer.`);
   if (driver.errors.length) throw Error(driver.errors.join('\n'));
-} finally { if (driver) await driver.stop(); await fs.rm(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); }
+} finally {
+  if (driver) await driver.stop();
+  await fs.rm(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+}

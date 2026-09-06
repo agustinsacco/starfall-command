@@ -15,19 +15,34 @@ async function screenshot(name) {
   await fs.writeFile(new URL(name + '.jpg', output), Buffer.from(shot.data, 'base64'));
 }
 async function loadView(camera, selection) {
-  await driver.evaluate(`(async()=>{const snapshot=starfallApp.captureState();snapshot.view.camera=${JSON.stringify(camera)};snapshot.view.selection=${JSON.stringify(selection)};snapshot.view.mode=null;const current=starfallApp.operation;await starfallDesktop.saves.write({id:current.id,name:current.name,snapshot});await starfallApp.showLibrary();})()`);
+  await driver.evaluate(
+    `(async()=>{const snapshot=starfallApp.captureState();snapshot.view.camera=${JSON.stringify(camera)};snapshot.view.selection=${JSON.stringify(selection)};snapshot.view.mode=null;const current=starfallApp.operation;await starfallDesktop.saves.write({id:current.id,name:current.name,snapshot});await starfallApp.showLibrary();})()`,
+  );
   const id = await driver.evaluate('starfallApp.operation.id');
   await driver.wait(`!!document.querySelector('[data-save-id="${id}"]')`, 'showcase operation card');
   await driver.click(`[data-save-id="${id}"] [data-action="load"]`);
-  await driver.wait('document.querySelector("#modal").hidden === false && !!document.querySelector("#resume-btn")', 'loaded operation pause menu');
-  await driver.wait('document.querySelectorAll("#messages .message").length === 0', 'transient notices dismissed', 6500);
+  await driver.wait(
+    'document.querySelector("#modal").hidden === false && !!document.querySelector("#resume-btn")',
+    'loaded operation pause menu',
+  );
+  await driver.wait(
+    'document.querySelectorAll("#messages .message").length === 0',
+    'transient notices dismissed',
+    6500,
+  );
   await driver.click('#resume-btn');
 }
 try {
   driver = await launchNative(profile);
-  await driver.call('Emulation.setDeviceMetricsOverride', { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await driver.call('Emulation.setDeviceMetricsOverride', {
+    width: 1600,
+    height: 1000,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
   await driver.evaluate('document.querySelector("#operation-name").value="Iron Dawn"');
-  await driver.click('[data-diff="hard"]'); await driver.click('#deploy-btn');
+  await driver.click('[data-diff="hard"]');
+  await driver.click('#deploy-btn');
   await driver.wait('starfallApp.operation?.name === "Iron Dawn" && !starfallApp.paused', 'showcase deployment');
   const ids = await driver.evaluate(`(()=>{
     const g=starfallApp.game;g.time=496;g.aiClock=10000;g.nextAttack=10000;
@@ -63,7 +78,8 @@ try {
     g.order(g.own(0).filter(e=>['ranger','lancer','wraith'].includes(e.type)).map(e=>e.id),'attackmove',1390,1190);
   })()`);
   await loadView({ x: 1240, y: 1145, z: 1.35 }, ids.tanks);
-  await sleep(950); await screenshot('combined-arms');
+  await sleep(950);
+  await screenshot('combined-arms');
   await driver.evaluate(`(async()=>{
     await starfallApp.saveGame();
     for(const [name,difficulty,time] of [['Basin Defense','normal',212]]){

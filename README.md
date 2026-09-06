@@ -10,7 +10,7 @@ A single-player sci-fi RTS about turning a mining outpost into a war machine. Bu
 
 ![Bastion siege tanks, infantry and Wraith aircraft fighting an enemy force around a mineral field](docs/screenshots/combined-arms.jpg)
 
-*Single-player vs. the computer · macOS, Linux & Windows · Plays offline · No account required*
+_Single-player vs. the computer · macOS, Linux & Windows · Plays offline · No account required_
 
 ## The good part is the decision
 
@@ -35,14 +35,14 @@ Research stronger weapons, tougher plating, and faster movement. Queue reinforce
 
 ### Know what you're sending in
 
-| Unit | What it's for |
-|---|---|
-| **Drone** | Build, gather, repair. Your economy has legs. |
-| **Ranger** | Dependable rifle infantry. The backbone of an early push. |
-| **Lancer** | Long-range precision damage. Keep something tougher in front. |
-| **Mender** | Automatic healing for nearby allies. Give your army staying power. |
+| Unit        | What it's for                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| **Drone**   | Build, gather, repair. Your economy has legs.                                            |
+| **Ranger**  | Dependable rifle infantry. The backbone of an early push.                                |
+| **Lancer**  | Long-range precision damage. Keep something tougher in front.                            |
+| **Mender**  | Automatic healing for nearby allies. Give your army staying power.                       |
 | **Bastion** | Heavy armor that deploys into siege artillery. Powerful at range; cannot shoot aircraft. |
-| **Wraith** | Fast aircraft that fly over obstacles. Take a different route to the fight. |
+| **Wraith**  | Fast aircraft that fly over obstacles. Take a different route to the fight.              |
 
 [Inspect the full unit and structure roster →](assets/generated/roster.png)
 
@@ -64,12 +64,12 @@ Force-quitting or losing power can only recover the last successfully committed 
 
 [**Get the latest release**](https://github.com/agustinsacco/starfall-command/releases/latest)
 
-| Your machine | Download |
-|---|---|
+| Your machine            | Download                           |
+| ----------------------- | ---------------------------------- |
 | **Mac · Apple Silicon** | `mac-arm64.dmg` or `mac-arm64.zip` |
-| **Mac · Intel** | `mac-x64.dmg` or `mac-x64.zip` |
+| **Mac · Intel**         | `mac-x64.dmg` or `mac-x64.zip`     |
 | **Linux · x64 / arm64** | The matching `.AppImage` or `.deb` |
-| **Windows · x64** | The `.exe` installer |
+| **Windows · x64**       | The `.exe` installer               |
 
 The app includes its runtime. You do **not** need Node.js to play.
 
@@ -95,20 +95,20 @@ Press **?** in-game for the field manual. Mouse and keyboard recommended.
 
 ## Controls
 
-| Input | Order |
-|---|---|
-| Click / drag | Select / box-select |
-| Shift + select / double-click | Add to selection / select visible units of a class |
-| Right-click | Move, attack, gather, repair, or set a rally point |
-| **A** → click / **M** → click | Attack-move / move without auto-attacking |
-| **B** | Selected drone's build palette |
-| **S** / **H** / **X** | Stop / hold / toggle Bastion siege |
-| **F2** / **I** | Select your combat army / next idle drone |
-| Ctrl/Cmd + **1–5** / **1–5** | Assign / recall a control group |
-| Arrows / middle-drag / two-finger scroll | Pan the map |
-| Pinch, mouse wheel, or Cmd/Ctrl + scroll | Zoom |
-| Space / **P** | Center selection / pause |
-| **F5** / **F9** / **F11** | Save / game library / fullscreen |
+| Input                                    | Order                                              |
+| ---------------------------------------- | -------------------------------------------------- |
+| Click / drag                             | Select / box-select                                |
+| Shift + select / double-click            | Add to selection / select visible units of a class |
+| Right-click                              | Move, attack, gather, repair, or set a rally point |
+| **A** → click / **M** → click            | Attack-move / move without auto-attacking          |
+| **B**                                    | Selected drone's build palette                     |
+| **S** / **H** / **X**                    | Stop / hold / toggle Bastion siege                 |
+| **F2** / **I**                           | Select your combat army / next idle drone          |
+| Ctrl/Cmd + **1–5** / **1–5**             | Assign / recall a control group                    |
+| Arrows / middle-drag / two-finger scroll | Pan the map                                        |
+| Pinch, mouse wheel, or Cmd/Ctrl + scroll | Zoom                                               |
+| Space / **P**                            | Center selection / pause                           |
+| **F5** / **F9** / **F11**                | Save / game library / fullscreen                   |
 
 ## What's in this build
 
@@ -116,7 +116,7 @@ Press **?** in-game for the field manual. Mouse and keyboard recommended.
 
 Both sides use the same technology. This is an original RTS inspired by the genre's classics—not a StarCraft remake. No campaign, multiplayer, distinct faction tech trees, or full 3D engine is included. Mission seeds change surface detail and the AI's random sequence, not the map layout.
 
-*Screenshots are captured from the actual game renderer. The armies, base layout, and sample operations are staged to showcase available gameplay—not painted mockups. No StarCraft assets are used.*
+_Screenshots are captured from the actual game renderer. The armies, base layout, and sample operations are staged to showcase available gameplay—not painted mockups. No StarCraft assets are used._
 
 <details>
 <summary><strong>Already have a browser save?</strong></summary>

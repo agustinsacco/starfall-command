@@ -6,11 +6,11 @@ Repository: <https://github.com/agustinsacco/starfall-command>
 
 Download from [GitHub Releases](https://github.com/agustinsacco/starfall-command/releases/latest):
 
-| Platform | Installers |
-|---|---|
+| Platform                    | Installers                            |
+| --------------------------- | ------------------------------------- |
 | macOS Apple Silicon / Intel | `.dmg` (drag to Applications), `.zip` |
-| Linux x64 / arm64 | `.AppImage`, `.deb` |
-| Windows x64 | `.exe` guided, per-user installer |
+| Linux x64 / arm64           | `.AppImage`, `.deb`                   |
+| Windows x64                 | `.exe` guided, per-user installer     |
 
 No Node installation is required to play. On macOS and Linux you can also run:
 
