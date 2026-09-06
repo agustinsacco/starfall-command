@@ -308,3 +308,42 @@ test('an unattended full match reaches defeat against the computer', { timeout: 
   assert.ok(g.time > 120);
   assert.ok(g.teams[1].stats.kills > 3);
 });
+
+test('difficulties grant a real grace period and stay ordered from cadet to veteran', { timeout: 180000 }, () => {
+  const outcome = {};
+  for (const d of ['easy', 'normal', 'hard']) {
+    const g = new Game(d);
+    let firstWave = null, maxArmy = 0;
+    for (let i = 0; i < 9000 && !g.result; i++) {
+      g.update(.1);
+      if (firstWave === null && g.aiWave > 0) firstWave = g.time;
+      if (i % 25 === 0) maxArmy = Math.max(maxArmy, g.own(1).filter(e => !D[e.type].building && e.type !== 'drone').length);
+    }
+    outcome[d] = { firstWave, maxArmy, defeat: g.result === 'defeat' ? g.time : Infinity };
+  }
+  assert.ok(outcome.easy.firstWave >= 280, 'cadet waits before the first assault: ' + outcome.easy.firstWave);
+  assert.ok(outcome.normal.firstWave >= 200, 'commander honors its grace period: ' + outcome.normal.firstWave);
+  assert.ok(outcome.hard.firstWave < outcome.normal.firstWave, JSON.stringify(outcome));
+  assert.ok(outcome.easy.maxArmy <= 16, 'cadet keeps its strike force small: ' + outcome.easy.maxArmy);
+  assert.ok(outcome.normal.maxArmy <= 40, 'commander respects its army cap: ' + outcome.normal.maxArmy);
+  assert.ok(outcome.hard.defeat < outcome.normal.defeat && outcome.normal.defeat < outcome.easy.defeat, JSON.stringify(outcome));
+  assert.ok(outcome.easy.defeat > 320, 'a fully passive player gets over five minutes on cadet: ' + outcome.easy.defeat);
+  assert.ok(outcome.hard.defeat < Infinity, 'veteran still finishes the match');
+});
+
+test('issued orders return an acknowledgement kind for interface feedback', () => {
+  const g = quiet();
+  const drone = g.own(0, 'drone')[0], mineral = g.resource(drone.order.target);
+  assert.equal(g.order([drone.id], 'context', mineral.x, mineral.y, mineral.id), 'gather');
+  assert.equal(g.order([drone.id], 'move', 500, 1200), 'move');
+  assert.equal(g.order([drone.id], 'attackmove', 500, 1200), 'attackmove');
+  assert.equal(g.order([g.own(0, 'hq')[0].id], 'context', 600, 1300), 'rally');
+  const damaged = g.own(0, 'relay')[0];
+  damaged.hp = 100;
+  assert.equal(g.order([drone.id], 'context', damaged.x, damaged.y, damaged.id), 'repair');
+  const foe = g.own(1, 'ranger')[0];
+  foe.x = drone.x + 40; foe.y = drone.y; g.updateVision();
+  assert.equal(g.order([drone.id], 'context', foe.x, foe.y, foe.id), 'attack');
+  assert.equal(g.order([drone.id], 'hold', 0, 0), null, 'stances need no battlefield marker');
+  assert.equal(g.order([], 'move', 0, 0), null, 'an empty selection acknowledges nothing');
+});
