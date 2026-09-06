@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta
   http-equiv="Content-Security-Policy"
-  content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
+  content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
 />
 <link rel="stylesheet" href="src/styles.css" />
 <link rel="stylesheet" href="src/desktop.css" />
@@ -19,7 +19,7 @@
     </div>
     <div class="divider"></div>
     <div class="sector mono">
-      SINGLE PLAYER <span style="color: var(--accent)">/</span> SKIRMISH<br /><b>KESTREL BASIN</b> &nbsp; SECTOR 07
+      SINGLE PLAYER <span class="accent">/</span> SKIRMISH<br /><b>KESTREL BASIN</b> &nbsp; SECTOR 07
     </div>
     <div class="resources" aria-label="Resources">
       <div class="resource minerals">
@@ -102,14 +102,231 @@
       ><span><kbd>↑↓←→</kbd> PAN</span><span><kbd>?</kbd> FIELD MANUAL</span>
     </div>
     <span class="build mono"
-      ><span id="operation-title">VANGUARD NETWORK</span> <span style="color: var(--accent)">●</span> &nbsp;
+      ><span id="operation-title">VANGUARD NETWORK</span> <span class="accent">●</span> &nbsp;
       <span id="save-status">AUTOSAVE READY</span> / 2.0</span
     >
   </footer>
 </div>
 <div id="tooltip" class="tooltip" hidden></div>
+<!-- Inert modal markup. Scripts clone these templates and fill dynamic fields with textContent only. -->
+<template id="tpl-briefing">
+  <div class="briefing">
+    <div>
+      <div class="eyebrow">NEW OPERATION &nbsp; / &nbsp; KESTREL BASIN</div>
+      <h1>A foothold.<br />Then <em>an empire.</em></h1>
+      <p class="lede">
+        The frontier belongs to no one. Build your base, command your forces, and drive the rival legion out of the
+        basin. Every decision is yours.
+      </p>
+      <div class="new-game-fields">
+        <label class="form-label" for="operation-name"
+          >OPERATION NAME<input
+            class="game-input"
+            id="operation-name"
+            maxlength="48"
+            value="Kestrel Expedition"
+            autocomplete="off"
+        /></label>
+        <label class="form-label seed-field" for="operation-seed"
+          >MISSION SEED<input
+            class="game-input"
+            id="operation-seed"
+            type="number"
+            min="0"
+            max="4294967295"
+            value="7481"
+        /></label>
+      </div>
+      <div class="difficulty-label mono">OPPOSITION STRENGTH</div>
+      <div class="difficulty">
+        <button data-diff="easy">Cadet</button><button data-diff="normal">Commander</button
+        ><button data-diff="hard">Veteran</button>
+      </div>
+      <p class="difficulty-hint" id="difficulty-hint"></p>
+      <div class="launch-row">
+        <button class="deploy" id="deploy-btn">DEPLOY TO SECTOR <span>↗</span></button
+        ><button class="secondary-dark" id="brief-load">GAME LIBRARY</button>
+      </div>
+      <button class="continue-operation" id="continue-btn" hidden>CONTINUE OPERATION</button>
+    </div>
+    <aside class="brief-card">
+      <div class="eyebrow">MISSION INTELLIGENCE</div>
+      <h3>One basin. One command.</h3>
+      <div class="card-map">
+        <svg viewBox="0 0 250 100" fill="none">
+          <path d="m15 82 39-32 25 8 43-33 25 17 37-28 49 4" stroke="#667e69" stroke-width="1" />
+          <path d="m20 77 54-12 30-25 38 13 64-29" stroke="#a9d6a8" stroke-dasharray="4 5" />
+          <path d="m55 12 16 23 34-12 35 3 6-21M110 92l23-19 27 14 47-40" stroke="#53664c" />
+          <circle cx="20" cy="77" r="6" fill="#b7e7b9" />
+          <circle cx="206" cy="24" r="6" fill="#e09a75" />
+          <circle cx="20" cy="77" r="13" stroke="#a6c8a1" opacity=".5" />
+          <circle cx="206" cy="24" r="13" stroke="#d39972" opacity=".5" />
+        </svg>
+      </div>
+      <div class="brief-detail"><span>YOUR FACTION</span><b>Vanguard</b></div>
+      <div class="brief-detail"><span>HOSTILE FACTION</span><b>Ashen Legion</b></div>
+      <div class="brief-detail"><span>ENGAGEMENT</span><b>1 vs. computer</b></div>
+      <div class="brief-detail"><span>VICTORY CONDITION</span><b>Destroy all structures</b></div>
+      <p class="note">Your drones are already harvesting.<br />Train an army. The legion is doing the same.</p>
+    </aside>
+  </div>
+</template>
+<template id="tpl-pause">
+  <div class="modal-card">
+    <div class="eyebrow">COMMAND LINK ON HOLD</div>
+    <h2>Take a tactical pause.</h2>
+    <p>Your complete battlefield is preserved. Save now, or return to another operation.</p>
+    <div class="menu-actions">
+      <button class="primary" id="resume-btn">▶ Resume operation</button><button id="manual-menu">? Field manual</button
+      ><button id="save-btn">↓ Save operation · F5</button><button id="load-btn">▤ Game library · F9</button
+      ><button id="restart-btn">＋ New operation</button><button id="sound-menu">♪ Sound: off</button
+      ><button id="theme-menu">◐ Switch interface theme</button><button id="quit-btn">Save and quit</button>
+    </div>
+    <div class="eyebrow" id="pause-meta"></div>
+  </div>
+</template>
+<template id="tpl-help">
+  <div class="modal-card">
+    <div class="eyebrow">VANGUARD / FIELD MANUAL</div>
+    <h2>Your first five minutes.</h2>
+    <div class="manual-grid">
+      <div>
+        <h3>01 / Grow your economy</h3>
+        <p>
+          Drones mine blue minerals automatically. Train more at the Command Spire. Build an Extractor on a green gas
+          vent, then assign 2–3 drones to it. Cargo must be returned before it is spendable.
+        </p>
+        <h3>02 / Build an army</h3>
+        <p>
+          Select the Infantry Bay and train Rangers. Add Supply Relays as your population grows. Production reserves
+          supply immediately. Click a queue item to cancel for a full refund.
+        </p>
+        <h3>03 / Unlock technology</h3>
+        <p>
+          A Research Lab unlocks Lancers and Menders, plus three levels each of weapons, plating, and servos. An
+          Infantry Bay unlocks the Foundry; the Foundry unlocks the Flight Deck.
+        </p>
+      </div>
+      <div>
+        <h3>04 / Command the battlefield</h3>
+        <p>
+          Drag to select forces. Right-click to move, attack, gather, or repair. Use attack-move to fight along the
+          route. Bastions can deploy siege artillery, but cannot shoot aircraft. Menders automatically heal nearby
+          allies.
+        </p>
+        <h3>05 / Push northeast</h3>
+        <p>
+          The enemy starts in the northeast. Scout beyond the fog, secure central mineral fields, and destroy every
+          enemy structure to win. The computer harvests, builds, upgrades, and launches increasingly frequent attacks.
+        </p>
+        <h3>Keep your builders working</h3>
+        <p>
+          Construction only advances while a drone is nearby. If it dies or leaves, right-click the unfinished structure
+          with another drone. Cancelling refunds 75%. Repairing costs minerals.
+        </p>
+      </div>
+    </div>
+    <div class="help-keys">
+      <b>Right click</b><span>Context order / structure rally point</span><b>A → click</b
+      ><span>Attack-move · M → click: move only</span><b>S / H / X</b><span>Stop / Hold / Tank siege mode</span
+      ><b>F2 / I</b><span>Select army / next idle drone</span><b>Ctrl + 1–5</b
+      ><span>Save group · 1–5: recall · double-tap: center</span><b>Scroll / arrows</b
+      ><span>Two-finger scroll pans the map · middle-drag too</span><b>Pinch / wheel</b
+      ><span>Zoom · Cmd/Ctrl + scroll also zooms</span><b>Space / P</b><span>Center selection / pause</span><b>Touch</b
+      ><span>Tap to select; use Move or Attack-move, then tap a target. Tap the minimap to pan.</span>
+    </div>
+    <button class="deploy" id="close-help">BACK TO COMMAND <span>↗</span></button>
+  </div>
+</template>
+<template id="tpl-result">
+  <div class="modal-card">
+    <div class="eyebrow" id="result-meta"></div>
+    <h2 id="result-heading"></h2>
+    <p id="result-text"></p>
+    <div class="result-stats">
+      <div><strong id="stat-kills"></strong><span>HOSTILES ELIMINATED</span></div>
+      <div><strong id="stat-trained"></strong><span>UNITS TRAINED</span></div>
+      <div><strong id="stat-gathered"></strong><span>RESOURCES GATHERED</span></div>
+    </div>
+    <div class="launch-row">
+      <button class="deploy" id="play-again">NEW OPERATION <span>↗</span></button
+      ><button id="review-btn">Review battlefield</button>
+    </div>
+  </div>
+</template>
+<template id="tpl-library">
+  <div class="modal-card library-shell">
+    <div class="library-heading">
+      <div>
+        <div class="eyebrow">PERSISTENT OPERATIONS</div>
+        <h2>Your frontier. Preserved.</h2>
+        <p>Create separate games and return to each exact battlefield.</p>
+      </div>
+      <button id="library-close" aria-label="Close library">×</button>
+    </div>
+    <div class="library-toolbar">
+      <button class="primary" id="library-new">＋ New operation</button
+      ><button id="library-import">↑ Import save</button><button id="library-copy">◇ Save as new game</button
+      ><span id="library-mode"></span>
+    </div>
+    <div id="save-list" class="save-list" aria-live="polite">Reading operations…</div>
+    <p class="library-footnote">
+      Autosaves and F5 update the current game. Save as new game creates a separate checkpoint. Loading starts paused.
+      Delete requires confirmation.
+    </p>
+  </div>
+</template>
+<template id="tpl-library-empty">
+  <div class="library-empty">
+    <span>⌁</span>
+    <h3>A new frontier awaits.</h3>
+    <p>No saved games yet. Create an operation or import a previous save.</p>
+  </div>
+</template>
+<template id="tpl-save-card">
+  <article class="save-card">
+    <div class="save-map"><span></span><small>KESTREL BASIN</small></div>
+    <div class="save-info">
+      <div class="eyebrow"></div>
+      <h3></h3>
+      <p></p>
+      <small></small>
+    </div>
+    <div class="save-actions">
+      <button data-action="load" class="primary"></button>
+      <div>
+        <button data-action="rename" title="Rename operation">Rename</button
+        ><button data-action="export" title="Export portable save">Export</button
+        ><button data-action="delete" class="danger">Delete</button>
+      </div>
+    </div>
+  </article>
+</template>
+<template id="tpl-name">
+  <form class="modal-card" id="name-form">
+    <div class="eyebrow">OPERATION MANAGEMENT</div>
+    <h2></h2>
+    <label class="form-label" for="save-name">Operation name</label>
+    <input id="save-name" class="game-input" required maxlength="48" />
+    <div class="menu-actions">
+      <button class="primary" type="submit">Confirm</button><button id="name-cancel" type="button">Cancel</button>
+    </div>
+  </form>
+</template>
+<template id="tpl-confirm">
+  <div class="modal-card">
+    <div class="eyebrow">CONFIRM ACTION</div>
+    <h2></h2>
+    <p></p>
+    <div class="menu-actions">
+      <button class="danger" id="confirm-yes">Delete permanently</button><button id="confirm-no">Keep operation</button>
+    </div>
+  </div>
+</template>
+<script src="src/shared.js"></script>
 <script src="src/simulation.js"></script>
 <script src="src/save-format.js"></script>
+<script src="src/save-repo.js"></script>
 <script src="src/save-client.js"></script>
 <script src="src/operations.js"></script>
 <script src="src/art.js"></script>

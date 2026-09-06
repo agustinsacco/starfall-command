@@ -37,11 +37,17 @@
     p.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
     c.closePath();
   }
-  function ellipse(c, x, y, rx, ry, fill) {
+  function ellipse(c, x, y, rx, ry, fill, stroke) {
     c.beginPath();
     c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-    c.fillStyle = fill;
-    c.fill();
+    if (fill) {
+      c.fillStyle = fill;
+      c.fill();
+    }
+    if (stroke) {
+      c.strokeStyle = stroke;
+      c.stroke();
+    }
   }
   const rotate = ([x, y, z], a) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a), z];
   const project = ([x, y, z]) => [x, y * 0.74 - z * 0.9];
@@ -943,6 +949,7 @@
     terrain,
     effect,
     ambient,
+    ellipse,
     get cacheSize() {
       return cache.size;
     },

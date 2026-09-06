@@ -1,31 +1,19 @@
 'use strict';
 (() => {
   const F = StarfallSaveFormat,
-    { Game } = Starfall;
-  const esc = (text) =>
-    String(text).replace(
-      /[&<>"']/g,
-      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
-    );
-  const duration = (time) =>
-    `${String(Math.floor(time / 60)).padStart(2, '0')}:${String(Math.floor(time % 60)).padStart(2, '0')}`;
-  const difficulty = { easy: 'Cadet', normal: 'Commander', hard: 'Veteran' };
+    { Game } = Starfall,
+    { formatTime, DIFFICULTY_NAMES, serialQueue } = StarfallShared;
+  const tpl = (id) => document.getElementById(id).content.firstElementChild.cloneNode(true);
   class Operations {
     constructor(hooks) {
       this.h = hooks;
       this.repo = StarfallSaves;
       this.current = null;
       this.lastTime = -1;
-      this.queue = Promise.resolve();
-      this.busy = false;
+      this.lock = serialQueue();
       this.autosaveInterval = setInterval(() => {
         if (this.current && !this.h.paused() && this.h.time() !== this.lastTime) this.save(true);
       }, 30000);
-    }
-    lock(fn) {
-      const result = this.queue.then(fn);
-      this.queue = result.catch(() => {});
-      return result;
     }
     status(text, error = false) {
       const e = document.querySelector('#save-status');
@@ -41,8 +29,8 @@
         const snapshot = this.h.capture();
         const summary = await this.repo.write({ id: this.current.id, name: this.current.name, snapshot });
         this.current = summary;
-        this.lastTime = JSON.parse(snapshot.simulation).time;
-        this.status('SAVED · ' + duration(this.lastTime));
+        this.lastTime = summary.time;
+        this.status('SAVED · ' + formatTime(this.lastTime));
         if (!silent) this.h.toast('Operation saved.');
         return true;
       } catch (error) {
@@ -98,7 +86,7 @@
           button.textContent = last ? 'CONTINUE · ' + last.name : '';
           button.onclick = () => this.load(last.id);
         }
-      } catch (error) {
+      } catch {
         this.status('STORAGE UNAVAILABLE', true);
       }
     }
@@ -173,7 +161,7 @@
           this.current = saved.summary;
           this.lastTime = saved.summary.time;
           this.h.apply(saved.record.snapshot, saved.summary, false);
-          this.status((saved.recovered ? 'BACKUP RESTORED · ' : 'SAVED · ') + duration(saved.summary.time));
+          this.status((saved.recovered ? 'BACKUP RESTORED · ' : 'SAVED · ') + formatTime(saved.summary.time));
           this.h.toast(
             saved.recovered
               ? 'Recovered the previous valid backup. Inspect it, then save to repair the latest slot.'
@@ -187,15 +175,89 @@
         }
       });
     }
+    saveCard(row) {
+      const card = tpl('tpl-save-card'),
+        active = row.id === this.current?.id,
+        pick = (s) => card.querySelector(s);
+      card.dataset.saveId = row.id;
+      pick('.save-map span').textContent = row.corrupt ? '!' : row.result === 'victory' ? '✧' : '⬡';
+      pick('.save-info .eyebrow').textContent = row.corrupt
+        ? 'DAMAGED SAVE'
+        : (active ? 'CURRENT OPERATION · ' : '') +
+          (row.recovered ? 'BACKUP AVAILABLE' : row.result ? row.result.toUpperCase() : 'IN PROGRESS');
+      pick('.save-info h3').textContent = row.name;
+      pick('.save-info p').textContent = row.corrupt
+        ? row.error
+        : DIFFICULTY_NAMES[row.difficulty] +
+          ' · ' +
+          formatTime(row.time) +
+          ' played · ' +
+          row.units +
+          ' units · ' +
+          row.buildings +
+          ' structures';
+      pick('.save-info small').textContent = row.updatedAt
+        ? new Date(row.updatedAt).toLocaleString() + ' · revision ' + row.revision
+        : 'Original file retained for recovery';
+      const load = pick('[data-action="load"]');
+      load.textContent = (row.result ? 'Review' : 'Continue') + ' ↗';
+      load.disabled = row.corrupt;
+      load.onclick = () => this.load(row.id);
+      pick('[data-action="rename"]').disabled = row.corrupt;
+      pick('[data-action="rename"]').onclick = () =>
+        this.nameDialog('Rename operation', row.name, (title) =>
+          this.lock(async () => {
+            try {
+              const updated = await this.repo.rename(row.id, title);
+              if (active) {
+                this.current = updated;
+                const label = document.querySelector('#operation-title');
+                if (label) label.textContent = updated.name;
+              }
+              await this.library();
+              return true;
+            } catch (error) {
+              this.h.toast(error.message, true);
+              return false;
+            }
+          }),
+        );
+      pick('[data-action="export"]').disabled = row.corrupt;
+      pick('[data-action="export"]').onclick = async () => {
+        try {
+          if (await this.repo.exportFile(row.id)) this.h.toast('Save exported.');
+        } catch (error) {
+          this.h.toast('Export failed: ' + error.message, true);
+        }
+      };
+      const remove = pick('[data-action="delete"]');
+      if (active) {
+        remove.disabled = true;
+        remove.title = 'Switch operations before deleting this game';
+      }
+      remove.onclick = () =>
+        this.confirm(
+          'Delete ' + row.name + '?',
+          'This removes this operation and its recovery backup. Other games are untouched.',
+          () =>
+            this.lock(async () => {
+              try {
+                await this.repo.delete(row.id);
+                this.library();
+              } catch (error) {
+                this.h.toast(error.message, true);
+              }
+            }),
+        );
+      return card;
+    }
     async library() {
-      this.h.modal(
-        'library',
-        '<div class="modal-card library-shell"><div class="library-heading"><div><div class="eyebrow">PERSISTENT OPERATIONS</div><h2>Your frontier. Preserved.</h2><p>Create separate games and return to each exact battlefield.</p></div><button id="library-close" aria-label="Close library">×</button></div><div class="library-toolbar"><button class="primary" id="library-new">＋ New operation</button><button id="library-import">↑ Import save</button>' +
-          (this.current ? '<button id="library-copy">◇ Save as new game</button>' : '') +
-          '<span>' +
-          (globalThis.starfallDesktop ? 'ON-DISK SAVES · AUTOMATIC BACKUPS' : 'BROWSER SAVES · EXPORT TO BACK UP') +
-          '</span></div><div id="save-list" class="save-list" aria-live="polite">Reading operations…</div><p class="library-footnote">Autosaves and F5 update the current game. Save as new game creates a separate checkpoint. Loading starts paused. Delete requires confirmation.</p></div>',
-      );
+      const shell = tpl('tpl-library');
+      shell.querySelector('#library-mode').textContent = globalThis.starfallDesktop
+        ? 'ON-DISK SAVES · AUTOMATIC BACKUPS'
+        : 'BROWSER SAVES · EXPORT TO BACK UP';
+      if (!this.current) shell.querySelector('#library-copy').remove();
+      this.h.modal('library', shell);
       document.querySelector('#library-close').onclick = () => (this.current ? this.h.pause() : this.h.briefing());
       document.querySelector('#library-new').onclick = async () => {
         if (await this.save(true)) this.h.briefing();
@@ -232,109 +294,21 @@
         const rows = await this.repo.list(),
           list = document.querySelector('#save-list');
         if (!list) return;
-        list.replaceChildren();
         if (!rows.length) {
-          list.innerHTML =
-            '<div class="library-empty"><span>⌁</span><h3>A new frontier awaits.</h3><p>No saved games yet. Create an operation or import a previous save.</p></div>';
+          list.replaceChildren(tpl('tpl-library-empty'));
           return;
         }
-        for (const row of rows) {
-          const card = document.createElement('article');
-          card.className = 'save-card';
-          card.dataset.saveId = row.id;
-          const active = row.id === this.current?.id;
-          card.innerHTML =
-            '<div class="save-map"><span>' +
-            (row.corrupt ? '!' : row.result === 'victory' ? '✧' : '⬡') +
-            '</span><small>KESTREL BASIN</small></div><div class="save-info"><div class="eyebrow">' +
-            (row.corrupt
-              ? 'DAMAGED SAVE'
-              : (active ? 'CURRENT OPERATION · ' : '') +
-                (row.recovered ? 'BACKUP AVAILABLE' : row.result ? esc(row.result).toUpperCase() : 'IN PROGRESS')) +
-            '</div><h3>' +
-            esc(row.name) +
-            '</h3><p>' +
-            (row.corrupt
-              ? esc(row.error)
-              : esc(difficulty[row.difficulty]) +
-                ' · ' +
-                duration(row.time) +
-                ' played · ' +
-                row.units +
-                ' units · ' +
-                row.buildings +
-                ' structures') +
-            '</p><small>' +
-            (row.updatedAt
-              ? esc(new Date(row.updatedAt).toLocaleString()) + ' · revision ' + row.revision
-              : 'Original file retained for recovery') +
-            '</small></div><div class="save-actions"><button data-action="load" class="primary" ' +
-            (row.corrupt ? 'disabled' : '') +
-            '>' +
-            (row.result ? 'Review' : 'Continue') +
-            ' ↗</button><div><button data-action="rename" title="Rename operation" ' +
-            (row.corrupt ? 'disabled' : '') +
-            '>Rename</button><button data-action="export" title="Export portable save" ' +
-            (row.corrupt ? 'disabled' : '') +
-            '>Export</button><button data-action="delete" class="danger" ' +
-            (active ? 'disabled title="Switch operations before deleting this game"' : '') +
-            '>Delete</button></div></div>';
-          card.querySelector('[data-action="load"]').onclick = () => this.load(row.id);
-          card.querySelector('[data-action="rename"]').onclick = () =>
-            this.nameDialog('Rename operation', row.name, (title) =>
-              this.lock(async () => {
-                try {
-                  const updated = await this.repo.rename(row.id, title);
-                  if (active) {
-                    this.current = updated;
-                    const label = document.querySelector('#operation-title');
-                    if (label) label.textContent = updated.name;
-                  }
-                  await this.library();
-                  return true;
-                } catch (error) {
-                  this.h.toast(error.message, true);
-                  return false;
-                }
-              }),
-            );
-          card.querySelector('[data-action="export"]').onclick = async () => {
-            try {
-              if (await this.repo.exportFile(row.id)) this.h.toast('Save exported.');
-            } catch (error) {
-              this.h.toast('Export failed: ' + error.message, true);
-            }
-          };
-          card.querySelector('[data-action="delete"]').onclick = () =>
-            this.confirm(
-              'Delete ' + row.name + '?',
-              'This removes this operation and its recovery backup. Other games are untouched.',
-              () =>
-                this.lock(async () => {
-                  try {
-                    await this.repo.delete(row.id);
-                    this.library();
-                  } catch (error) {
-                    this.h.toast(error.message, true);
-                  }
-                }),
-            );
-          list.append(card);
-        }
+        list.replaceChildren(...rows.map((row) => this.saveCard(row)));
       } catch (error) {
         const list = document.querySelector('#save-list');
         if (list) list.textContent = 'Could not read saves: ' + error.message;
       }
     }
     nameDialog(title, initial, submit) {
-      this.h.modal(
-        'name',
-        '<form class="modal-card" id="name-form"><div class="eyebrow">OPERATION MANAGEMENT</div><h2>' +
-          esc(title) +
-          '</h2><label class="form-label" for="save-name">Operation name</label><input id="save-name" class="game-input" required maxlength="48" value="' +
-          esc(initial.slice(0, 48)) +
-          '"><div class="menu-actions"><button class="primary" type="submit">Confirm</button><button id="name-cancel" type="button">Cancel</button></div></form>',
-      );
+      const form = tpl('tpl-name');
+      form.querySelector('h2').textContent = title;
+      form.querySelector('#save-name').value = initial.slice(0, 48);
+      this.h.modal('name', form);
       document.querySelector('#name-form').onsubmit = async (e) => {
         e.preventDefault();
         const b = e.currentTarget.querySelector('[type="submit"]');
@@ -345,14 +319,10 @@
       document.querySelector('#save-name').focus();
     }
     confirm(title, text, action) {
-      this.h.modal(
-        'confirm',
-        '<div class="modal-card"><div class="eyebrow">CONFIRM ACTION</div><h2>' +
-          esc(title) +
-          '</h2><p>' +
-          esc(text) +
-          '</p><div class="menu-actions"><button class="danger" id="confirm-yes">Delete permanently</button><button id="confirm-no">Keep operation</button></div></div>',
-      );
+      const card = tpl('tpl-confirm');
+      card.querySelector('h2').textContent = title;
+      card.querySelector('p').textContent = text;
+      this.h.modal('confirm', card);
       document.querySelector('#confirm-no').onclick = () => this.library();
       document.querySelector('#confirm-yes').onclick = action;
     }

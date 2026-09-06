@@ -245,6 +245,26 @@
     },
     hard: { think: 1.4, workers: 16, stageEvery: 20, firstWave: 125, wave: 80, waveMin: 7, armyCap: 200, upEvery: 170 },
   };
+  // Every cross-cutting gameplay constant lives here so tuning changes are one-line diffs.
+  const BAL = {
+    supplyMax: 200,
+    queueMax: 5,
+    cancelRefund: 0.75,
+    workerCargo: 10,
+    mineInterval: 0.8,
+    mineYield: 5,
+    repairHpPerSecond: 22,
+    repairMineralsPerHp: 0.25,
+    buildHpFactor: 0.9,
+    weaponsDamagePerLevel: 3,
+    mobilitySpeedPerLevel: 0.12,
+    healAmount: 15,
+    healInterval: 0.7,
+    siege: { range: 340, damage: 72, cooldown: 3, splash: 62 },
+    tankSplash: 38,
+    splashFactor: 0.4,
+    pursuitMargin: 60,
+  };
   const tuning = (d) => AI[d] || AI.normal;
   const DIST = (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
     clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -386,7 +406,7 @@
         if (e.complete) cap += d.cap || 0;
         for (const q of e.queue) if (q.kind === 'unit') used += D[q.type].supply;
       }
-      return { used, cap: Math.min(200, cap) };
+      return { used, cap: Math.min(BAL.supplyMax, cap) };
     }
     canPay(team, m, g = 0) {
       return this.teams[team].minerals >= m && this.teams[team].gas >= g;
@@ -412,7 +432,7 @@
       let reason = '';
       const s = this.supply(b.team);
       if (!this.available(type, b.team)) reason = 'Requires ' + D[d.req].name;
-      else if (b.queue.length >= 5) reason = 'Production queue full';
+      else if (b.queue.length >= BAL.queueMax) reason = 'Production queue full';
       else if (s.used + d.supply > s.cap) reason = 'Supply limit reached — build a Supply Relay';
       else if (!this.canPay(b.team, d.m, d.g))
         reason = 'Not enough ' + (this.teams[b.team].minerals < d.m ? 'minerals' : 'aether gas');
@@ -438,7 +458,7 @@
         this.emit('Upgrade already in progress', b.team, true);
         return false;
       }
-      if (b.queue.length >= 5) return false;
+      if (b.queue.length >= BAL.queueMax) return false;
       const m = up.m * (level + 1),
         g = up.g * (level + 1);
       if (!this.pay(b.team, m, g)) {
@@ -520,8 +540,8 @@
     cancelBuild(id) {
       const e = this.entity(id);
       if (!e || e.complete || !D[e.type].building) return false;
-      this.teams[e.team].minerals += Math.floor(D[e.type].m * 0.75);
-      this.teams[e.team].gas += Math.floor(D[e.type].g * 0.75);
+      this.teams[e.team].minerals += Math.floor(D[e.type].m * BAL.cancelRefund);
+      this.teams[e.team].gas += Math.floor(D[e.type].g * BAL.cancelRefund);
       e.hp = 0;
       this.entities = this.entities.filter((x) => x.id !== id);
       this.rebuildGrid();
@@ -717,7 +737,7 @@
       const dist = Math.hypot(u.x - x, u.y - y);
       if (dist <= stop) return true;
       if (u.siege) return false;
-      const key = Math.floor(x / 32) + ',' + Math.floor(y / 32);
+      const key = Math.floor(x / TILE) + ',' + Math.floor(y / TILE);
       if (u.pathGoal !== key) {
         u.path = this.pathfind(u, x, y);
         u.pathGoal = key;
@@ -727,7 +747,7 @@
         dx = p.x - u.x,
         dy = p.y - u.y,
         len = Math.hypot(dx, dy),
-        speed = D[u.type].speed * (1 + this.teams[u.team].up.mobility * 0.12),
+        speed = D[u.type].speed * (1 + this.teams[u.team].up.mobility * BAL.mobilitySpeedPerLevel),
         step = Math.min(speed * dt, len);
       if (len) {
         u.x += (dx / len) * step;
@@ -796,8 +816,8 @@
     fire(u, t) {
       const d = D[u.type];
       u.angle = Math.atan2(t.y - u.y, t.x - u.x);
-      u.cool = u.siege ? 3 : d.rate;
-      let amount = (u.siege ? 72 : d.damage) + this.teams[u.team].up.weapons * 3;
+      u.cool = u.siege ? BAL.siege.cooldown : d.rate;
+      let amount = (u.siege ? BAL.siege.damage : d.damage) + this.teams[u.team].up.weapons * BAL.weaponsDamagePerLevel;
       this.effects.push({
         type: u.type === 'tank' ? 'shell' : 'shot',
         x: u.x,
@@ -816,9 +836,9 @@
             other.team !== u.team &&
             other.hp > 0 &&
             !D[other.type].flying &&
-            DIST(other, t) < (u.siege ? 62 : 38)
+            DIST(other, t) < (u.siege ? BAL.siege.splash : BAL.tankSplash)
           )
-            this.damage(other, amount * 0.4, u);
+            this.damage(other, amount * BAL.splashFactor, u);
     }
     combat(u, dt) {
       const d = D[u.type];
@@ -829,8 +849,8 @@
           .sort((a, b) => a.hp / D[a.type].hp - b.hp / D[b.type].hp)[0];
         if (target) {
           if (u.cool <= 0) {
-            target.hp = Math.min(D[target.type].hp, target.hp + 15);
-            u.cool = 0.7;
+            target.hp = Math.min(D[target.type].hp, target.hp + BAL.healAmount);
+            u.cool = BAL.healInterval;
             this.effects.push({ type: 'heal', x: u.x, y: u.y, tx: target.x, ty: target.y, life: 0.25, max: 0.25 });
           }
           return true;
@@ -838,7 +858,7 @@
         return false;
       }
       if (!d.damage || !u.complete || ['move', 'gather', 'build', 'repair'].includes(u.order.type)) return false;
-      const range = u.siege ? 340 : d.range;
+      const range = u.siege ? BAL.siege.range : d.range;
       let target = u.order.type === 'attack' ? this.entity(u.order.target) : null;
       if (target && (!this.isVisible(target, u.team) || (u.type === 'tank' && D[target.type].flying))) target = null;
       if (!target) {
@@ -847,7 +867,7 @@
           if (e.team === u.team || e.hp <= 0 || !this.isVisible(e, u.team) || (u.type === 'tank' && D[e.type].flying))
             continue;
           let dist = DIST(u, e) - D[e.type].r;
-          const reach = u.order.type === 'hold' || d.building || u.siege ? range : range + 60;
+          const reach = u.order.type === 'hold' || d.building || u.siege ? range : range + BAL.pursuitMargin;
           if (dist < reach) {
             let score = dist + (D[e.type].building ? 60 : 0);
             if (score < best) {
@@ -881,7 +901,7 @@
           if (!b.complete) {
             const delta = dt / D[b.type].time;
             b.progress = Math.min(1, b.progress + delta);
-            b.hp = Math.min(D[b.type].hp, b.hp + D[b.type].hp * 0.9 * delta);
+            b.hp = Math.min(D[b.type].hp, b.hp + D[b.type].hp * BAL.buildHpFactor * delta);
             if (b.progress >= 1) {
               b.complete = true;
               this.teams[b.team].stats.built++;
@@ -890,9 +910,13 @@
               if (b.type === 'refinery') u.order = { type: 'gather', target: b.vent };
             }
           } else if (b.hp < D[b.type].hp) {
-            const n = Math.min(dt * 22, D[b.type].hp - b.hp, this.teams[u.team].minerals * 4);
+            const n = Math.min(
+              dt * BAL.repairHpPerSecond,
+              D[b.type].hp - b.hp,
+              this.teams[u.team].minerals / BAL.repairMineralsPerHp,
+            );
             b.hp += n;
-            this.teams[u.team].minerals -= n / 4;
+            this.teams[u.team].minerals -= n * BAL.repairMineralsPerHp;
             if (n === 0) this.emit('Repair paused — insufficient minerals', u.team, true);
           } else u.order = { type: 'idle' };
         }
@@ -910,7 +934,7 @@
           return;
         }
       }
-      if (u.cargo >= 10 || (u.cargo > 0 && (!r || r.amount <= 0 || r.type !== u.cargoType))) {
+      if (u.cargo >= BAL.workerCargo || (u.cargo > 0 && (!r || r.amount <= 0 || r.type !== u.cargoType))) {
         const deposits = this.own(u.team, u.cargoType === 'gas' ? 'refinery' : 'hq', true);
         const b = deposits.sort((a, b) => DIST(u, a) - DIST(u, b))[0];
         if (!b) {
@@ -932,9 +956,9 @@
       }
       if (this.move(u, r.x, r.y, dt, r.type === 'gas' ? D.refinery.r + 20 : 28)) {
         u.mine += dt;
-        if (u.mine >= 0.8) {
+        if (u.mine >= BAL.mineInterval) {
           u.mine = 0;
-          const n = Math.min(5, r.amount);
+          const n = Math.min(BAL.mineYield, r.amount);
           r.amount -= n;
           u.cargo += n;
           u.cargoType = r.type;
@@ -1075,7 +1099,7 @@
       const plans = ['refinery', 'lab', 'factory', 'barracks', 'airfield', 'turret'];
       if (
         supply.cap - supply.used < 5 &&
-        supply.cap < 200 &&
+        supply.cap < BAL.supplyMax &&
         !this.own(team).some((e) => e.type === 'relay' && !e.complete)
       )
         type = 'relay';
@@ -1226,6 +1250,7 @@
     const fail = () => {
       throw Error('Invalid or incompatible simulation save');
     };
+    // Local validators keep this module dependency-free; it must run in a bare VM context.
     const obj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
     const num = (v, min = 0, max = 1e9) => Number.isFinite(v) && v >= min && v <= max;
     const int = (v, min = 0, max = 1e9) => Number.isInteger(v) && num(v, min, max);
@@ -1289,7 +1314,7 @@
         !obj(e.order) ||
         !orders.includes(e.order.type) ||
         !Array.isArray(e.queue) ||
-        e.queue.length > 5
+        e.queue.length > BAL.queueMax
       )
         fail();
       id(e.id);
@@ -1335,7 +1360,7 @@
           fail();
     }
   }
-  const api = { Game, D, UP, W, H, TILE, COLS, ROWS, DIST, clamp };
+  const api = { Game, D, UP, BAL, W, H, TILE, COLS, ROWS, DIST, clamp };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else globalThis.Starfall = api;
 })();

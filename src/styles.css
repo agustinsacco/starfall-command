@@ -93,6 +93,9 @@ button.active {
 kbd {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
+.accent {
+  color: var(--accent);
+}
 .eyebrow {
   font-size: 10px;
   letter-spacing: 2px;
@@ -546,6 +549,7 @@ kbd {
   color: var(--muted);
 }
 .empty-commands {
+  grid-column: 1 / -1;
   font-size: 11px;
   color: var(--muted);
   line-height: 1.8;
@@ -808,6 +812,9 @@ kbd {
 .result-stats span {
   font-size: 9px;
   color: var(--muted);
+}
+#review-btn {
+  padding: 13px;
 }
 .progress-wrap {
   margin-top: 8px;

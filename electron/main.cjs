@@ -7,6 +7,7 @@ const { pathToFileURL } = require('node:url');
 const { randomUUID } = require('node:crypto');
 const { SaveStore } = require('./save-store.cjs');
 const { MAX_BYTES } = require('../src/save-format.js');
+const { sanitizeFilename } = require('../src/shared.js');
 const ROOT = path.resolve(__dirname, '..');
 const APP_URL = 'starfall://app/index.html';
 app.setName('Starfall Command');
@@ -226,7 +227,7 @@ app
       const saved = await store.read(id);
       const chosen = await dialog.showSaveDialog(win, {
         title: 'Export Starfall operation',
-        defaultPath: saved.record.name.replace(/[^a-zA-Z0-9 _-]/g, '_') + '.starfall.json',
+        defaultPath: sanitizeFilename(saved.record.name) + '.starfall.json',
         filters: [{ name: 'Starfall save', extensions: ['json'] }],
       });
       if (chosen.canceled || !chosen.filePath) return false;
@@ -266,6 +267,8 @@ app
               },
             ]
           : []),
+        // Standard Edit roles keep clipboard shortcuts working in name inputs, especially on macOS.
+        { role: 'editMenu' },
         {
           label: 'Operation',
           submenu: [

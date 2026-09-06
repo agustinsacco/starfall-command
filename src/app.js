@@ -1,6 +1,8 @@
 'use strict';
 (() => {
-  const { Game, D, UP, W, H, TILE, COLS, ROWS, DIST, clamp } = Starfall;
+  const { Game, D, UP, BAL, W, H, TILE, COLS, ROWS, DIST, clamp } = Starfall;
+  const { formatTime, DIFFICULTY_NAMES } = StarfallShared;
+  const tpl = (id) => document.getElementById(id).content.firstElementChild.cloneNode(true);
   const $ = (s) => document.querySelector(s),
     canvas = $('#field'),
     ctx = canvas.getContext('2d'),
@@ -44,19 +46,7 @@
   function terrain() {
     StarfallArt.terrain(bc, game);
   }
-  const { building, unit, resource } = StarfallArt;
-  function ellipse(c, x, y, rx, ry, fill, stroke) {
-    c.beginPath();
-    c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-    if (fill) {
-      c.fillStyle = fill;
-      c.fill();
-    }
-    if (stroke) {
-      c.strokeStyle = stroke;
-      c.stroke();
-    }
-  }
+  const { building, unit, resource, ellipse } = StarfallArt;
   function screenToWorld(x, y) {
     return { x: (x - cw / 2) / camera.z + camera.x, y: (y - ch / 2) / camera.z + camera.y };
   }
@@ -679,20 +669,49 @@
     if (!iconCache.has(type)) iconCache.set(type, StarfallArt.thumbnail(type, 0, 96).toDataURL());
     return iconCache.get(type);
   }
-  function commandButton({ name, icon, asset, small = '', key = '', tip = '', disabled = false, fn, active = false }) {
+  function commandButton({
+    name,
+    icon,
+    asset,
+    small = [],
+    key = '',
+    tip = '',
+    cost = '',
+    note = '',
+    disabled = false,
+    fn,
+    active = false,
+  }) {
     const b = document.createElement('button');
     b.className = 'cmd' + (active ? ' active' : '');
     b.disabled = disabled;
-    b.innerHTML =
-      (asset
-        ? '<img class="cmd-art" src="' + unitIcon(asset) + '" alt="">'
-        : '<span class="cmd-icon">' + icon + '</span>') +
-      '<small>' +
-      small +
-      '</small><span class="cmd-name">' +
-      name +
-      '</span>' +
-      (key ? '<kbd>' + key + '</kbd>' : '');
+    if (asset) {
+      const art = document.createElement('img');
+      art.className = 'cmd-art';
+      art.alt = '';
+      art.src = unitIcon(asset);
+      b.append(art);
+    } else {
+      const glyph = document.createElement('span');
+      glyph.className = 'cmd-icon';
+      glyph.textContent = icon;
+      b.append(glyph);
+    }
+    const lines = document.createElement('small');
+    small.forEach((line, i) => {
+      if (i) lines.append(document.createElement('br'));
+      lines.append(line);
+    });
+    b.append(lines);
+    const label = document.createElement('span');
+    label.className = 'cmd-name';
+    label.textContent = name;
+    b.append(label);
+    if (key) {
+      const kbd = document.createElement('kbd');
+      kbd.textContent = key;
+      b.append(kbd);
+    }
     b.dataset.command = name;
     b.addEventListener('click', () => {
       if (paused || !started) return;
@@ -702,8 +721,17 @@
     });
     b.addEventListener('pointerenter', () => {
       if (!tip) return;
-      const el = $('#tooltip');
-      el.innerHTML = '<b>' + name + '</b>' + tip;
+      const el = $('#tooltip'),
+        title = document.createElement('b');
+      title.textContent = name;
+      el.replaceChildren(title, tip);
+      if (cost) {
+        const line = document.createElement('span');
+        line.className = 'cost';
+        line.textContent = cost;
+        el.append(line);
+      }
+      if (note) el.append(note);
       el.hidden = false;
       const r = b.getBoundingClientRect(),
         tr = el.getBoundingClientRect();
@@ -761,14 +789,24 @@
             : D[e.type].building
               ? 'ONLINE'
               : e.order.type.toUpperCase();
-      $('#selection-stats').innerHTML =
-        '<span>ATK <b>' +
-        ((d.damage || 0) + (d.damage ? t.up.weapons * 3 : 0)) +
-        '</b></span><span>ARM <b>' +
-        ((d.armor || 0) + t.up.armor) +
-        '</b></span><span>' +
-        (d.cap ? 'SUP <b>+' + d.cap : D[e.type].building ? 'TECH <b>ONLINE' : 'RNG <b>' + (e.siege ? 340 : d.range)) +
-        '</b></span>';
+      const stats = [
+        ['ATK', (d.damage || 0) + (d.damage ? t.up.weapons * BAL.weaponsDamagePerLevel : 0)],
+        ['ARM', (d.armor || 0) + t.up.armor],
+        d.cap
+          ? ['SUP', '+' + d.cap]
+          : D[e.type].building
+            ? ['TECH', 'ONLINE']
+            : ['RNG', e.siege ? BAL.siege.range : d.range],
+      ];
+      $('#selection-stats').replaceChildren(
+        ...stats.map(([stat, value]) => {
+          const cell = document.createElement('span'),
+            b = document.createElement('b');
+          b.textContent = value;
+          cell.append(stat + ' ', b);
+          return cell;
+        }),
+      );
       pc.clearRect(0, 0, 166, 166);
       pc.save();
       pc.translate(83, 93);
@@ -835,13 +873,13 @@
       p.className = 'progress-wrap';
       p.textContent =
         e.type === 'drone'
-          ? 'CARGO ' + e.cargo + '/10 · right-click minerals to harvest'
+          ? 'CARGO ' + e.cargo + '/' + BAL.workerCargo + ' · right-click minerals to harvest'
           : D[e.type].building && D[e.type].trains
             ? 'Right-click the battlefield to set a rally point.'
             : e.type === 'tank'
               ? 'Press X to deploy siege mode. Cannot fire at aircraft.'
               : e.type === 'mender'
-                ? 'Restores 15 HP to a nearby ally every 0.7s.'
+                ? 'Restores ' + BAL.healAmount + ' HP to a nearby ally every ' + BAL.healInterval + 's.'
                 : 'WEAPONS ' + t.up.weapons + '/3 · PLATING ' + t.up.armor + '/3 · SERVOS ' + t.up.mobility + '/3';
       extra.append(p);
     }
@@ -881,7 +919,6 @@
       if (!e || e.team !== 0) {
         const p = document.createElement('div');
         p.className = 'empty-commands';
-        p.style.gridColumn = '1/-1';
         p.textContent = e ? 'Enemy contact. Select your forces to engage.' : 'Select your forces. The frontier awaits.';
         commands.append(p);
         return;
@@ -906,7 +943,7 @@
         add({
           name: 'Cancel build',
           icon: '×',
-          tip: 'Abandon this structure. Refunds 75% of its cost.',
+          tip: 'Abandon this structure. Refunds ' + BAL.cancelRefund * 100 + '% of its cost.',
           fn: () => {
             game.cancelBuild(e.id);
             selection = [];
@@ -923,17 +960,10 @@
             name: d.name,
             icon: d.icon,
             asset: type,
-            small: d.m + ' ◆' + (d.g ? '<br>' + d.g + ' ⬡' : ''),
-            tip:
-              d.role +
-              '.<span class="cost">' +
-              d.m +
-              ' minerals · ' +
-              d.g +
-              ' gas · ' +
-              d.time +
-              's</span>' +
-              (!req ? 'Requires ' + D[d.req].name : ''),
+            small: [d.m + ' ◆', ...(d.g ? [d.g + ' ⬡'] : [])],
+            tip: d.role + '.',
+            cost: d.m + ' minerals · ' + d.g + ' gas · ' + d.time + 's',
+            note: !req ? 'Requires ' + D[d.req].name : '',
             disabled: !req || !pay,
             active: mode?.build === type,
             fn: () => {
@@ -951,21 +981,15 @@
             name: u.name,
             icon: u.icon,
             asset: type,
-            small: u.m + ' ◆' + (u.g ? '<br>' + u.g + ' ⬡' : ''),
-            tip:
-              u.role +
-              '.<span class="cost">' +
-              u.m +
-              ' minerals · ' +
-              u.g +
-              ' gas · ' +
-              u.supply +
-              ' supply · ' +
-              u.time +
-              's</span>' +
-              (!game.available(type, 0) ? 'Requires ' + D[u.req].name : ''),
+            small: [u.m + ' ◆', ...(u.g ? [u.g + ' ⬡'] : [])],
+            tip: u.role + '.',
+            cost: u.m + ' minerals · ' + u.g + ' gas · ' + u.supply + ' supply · ' + u.time + 's',
+            note: !game.available(type, 0) ? 'Requires ' + D[u.req].name : '',
             disabled:
-              !game.available(type, 0) || !game.canPay(0, u.m, u.g) || s.used + u.supply > s.cap || e.queue.length >= 5,
+              !game.available(type, 0) ||
+              !game.canPay(0, u.m, u.g) ||
+              s.used + u.supply > s.cap ||
+              e.queue.length >= BAL.queueMax,
             fn: () => {
               game.train(e.id, type);
               beep('command');
@@ -986,14 +1010,9 @@
           add({
             name: u.name + ' ' + (level >= 3 ? 'MAX' : level + 1),
             icon: u.icon,
-            small: level >= 3 ? '3 / 3' : u.m * (level + 1) + ' ◆<br>' + u.g * (level + 1) + ' ⬡',
-            tip:
-              u.desc +
-              ' Maximum 3 levels.<span class="cost">' +
-              (30 + level * 12) +
-              's · ' +
-              (busy ? 'Research in progress' : 'Global upgrade') +
-              '</span>',
+            small: level >= 3 ? ['3 / 3'] : [u.m * (level + 1) + ' ◆', u.g * (level + 1) + ' ⬡'],
+            tip: u.desc + ' Maximum 3 levels.',
+            cost: 30 + level * 12 + 's · ' + (busy ? 'Research in progress' : 'Global upgrade'),
             disabled: level >= 3 || busy || !game.canPay(0, u.m * (level + 1), u.g * (level + 1)),
             fn: () => game.research(e.id, key),
           });
@@ -1055,7 +1074,12 @@
             name: e.siege ? 'Mobilize' : 'Siege mode',
             icon: '⊹',
             key: 'X',
-            tip: 'Bastions become stationary artillery: 340 range, 72 damage, larger splash. Ground targets only.',
+            tip:
+              'Bastions become stationary artillery: ' +
+              BAL.siege.range +
+              ' range, ' +
+              BAL.siege.damage +
+              ' damage, larger splash. Ground targets only.',
             fn: () =>
               game.order(
                 es.filter((u) => u.team === 0).map((u) => u.id),
@@ -1068,7 +1092,6 @@
       if (d.building && !d.trains && e.type !== 'lab') {
         const p = document.createElement('div');
         p.className = 'empty-commands';
-        p.style.gridColumn = '1/-1';
         p.textContent =
           e.type === 'relay'
             ? '+10 supply capacity. Build more to support a larger army.'
@@ -1081,26 +1104,20 @@
       }
     }
   }
-  function formatTime(time) {
-    return String(Math.floor(time / 60)).padStart(2, '0') + ':' + String(Math.floor(time % 60)).padStart(2, '0');
-  }
-  function showModal(kind, html) {
+  function showModal(kind, node) {
     modalKind = kind;
     paused = true;
     keys.clear();
     drag = null;
     $('#tooltip').hidden = true;
     $('#modal').hidden = false;
-    $('#modal').innerHTML = html;
+    $('#modal').replaceChildren(node);
     $('#pause-btn').textContent = '▶';
     $('#pause-btn').setAttribute('aria-label', 'Resume game');
     updateUI(true);
   }
   function showBriefing() {
-    showModal(
-      'briefing',
-      '<div class="briefing"><div><div class="eyebrow">NEW OPERATION &nbsp; / &nbsp; KESTREL BASIN</div><h1>A foothold.<br>Then <em>an empire.</em></h1><p class="lede">The frontier belongs to no one. Build your base, command your forces, and drive the rival legion out of the basin. Every decision is yours.</p><div class="new-game-fields"><label class="form-label" for="operation-name">OPERATION NAME<input class="game-input" id="operation-name" maxlength="48" value="Kestrel Expedition" autocomplete="off"></label><label class="form-label seed-field" for="operation-seed">MISSION SEED<input class="game-input" id="operation-seed" type="number" min="0" max="4294967295" value="7481"></label></div><div class="difficulty-label mono">OPPOSITION STRENGTH</div><div class="difficulty"><button data-diff="easy">Cadet</button><button data-diff="normal">Commander</button><button data-diff="hard">Veteran</button></div><p class="difficulty-hint" id="difficulty-hint"></p><div class="launch-row"><button class="deploy" id="deploy-btn">DEPLOY TO SECTOR <span>↗</span></button><button class="secondary-dark" id="brief-load">GAME LIBRARY</button></div><button class="continue-operation" id="continue-btn" hidden>CONTINUE OPERATION</button></div><aside class="brief-card"><div class="eyebrow">MISSION INTELLIGENCE</div><h3>One basin. One command.</h3><div class="card-map"><svg viewBox="0 0 250 100" fill="none"><path d="m15 82 39-32 25 8 43-33 25 17 37-28 49 4" stroke="#667e69" stroke-width="1"/><path d="m20 77 54-12 30-25 38 13 64-29" stroke="#a9d6a8" stroke-dasharray="4 5"/><path d="m55 12 16 23 34-12 35 3 6-21M110 92l23-19 27 14 47-40" stroke="#53664c"/><circle cx="20" cy="77" r="6" fill="#b7e7b9"/><circle cx="206" cy="24" r="6" fill="#e09a75"/><circle cx="20" cy="77" r="13" stroke="#a6c8a1" opacity=".5"/><circle cx="206" cy="24" r="13" stroke="#d39972" opacity=".5"/></svg></div><div class="brief-detail"><span>YOUR FACTION</span><b>Vanguard</b></div><div class="brief-detail"><span>HOSTILE FACTION</span><b>Ashen Legion</b></div><div class="brief-detail"><span>ENGAGEMENT</span><b>1 vs. computer</b></div><div class="brief-detail"><span>VICTORY CONDITION</span><b>Destroy all structures</b></div><p class="note">Your drones are already harvesting.<br>Train an army. The legion is doing the same.</p></aside></div>',
-    );
+    showModal('briefing', tpl('tpl-briefing'));
     const hints = {
       easy: 'A patient rival: smaller strike forces, slower tech, and a long grace period.',
       normal: 'A steady rival that expands, researches, and raids in waves. A fair fight.',
@@ -1159,16 +1176,10 @@
   }
   function showPause() {
     if (!started || game.result) return;
-    showModal(
-      'pause',
-      '<div class="modal-card"><div class="eyebrow">COMMAND LINK ON HOLD</div><h2>Take a tactical pause.</h2><p>Your complete battlefield is preserved. Save now, or return to another operation.</p><div class="menu-actions"><button class="primary" id="resume-btn">▶ Resume operation</button><button id="manual-menu">? Field manual</button><button id="save-btn">↓ Save operation · F5</button><button id="load-btn">▤ Game library · F9</button><button id="restart-btn">＋ New operation</button><button id="sound-menu">♪ Sound: ' +
-        (sound ? 'on' : 'off') +
-        '</button><button id="theme-menu">◐ Switch interface theme</button><button id="quit-btn">Save and quit</button></div><div class="eyebrow">' +
-        formatTime(game.time) +
-        ' ELAPSED · ' +
-        { easy: 'CADET', normal: 'COMMANDER', hard: 'VETERAN' }[game.difficulty] +
-        ' · AUTOSAVE EVERY 30s</div></div>',
-    );
+    showModal('pause', tpl('tpl-pause'));
+    $('#sound-menu').textContent = '♪ Sound: ' + (sound ? 'on' : 'off');
+    $('#pause-meta').textContent =
+      formatTime(game.time) + ' ELAPSED · ' + DIFFICULTY_NAMES[game.difficulty].toUpperCase() + ' · AUTOSAVE EVERY 30s';
     $('#resume-btn').onclick = resume;
     $('#manual-menu').onclick = showHelp;
     $('#save-btn').onclick = () => saveGame();
@@ -1229,33 +1240,22 @@
     else showPause();
   }
   function showHelp() {
-    showModal(
-      'help',
-      '<div class="modal-card"><div class="eyebrow">VANGUARD / FIELD MANUAL</div><h2>Your first five minutes.</h2><div class="manual-grid"><div><h3>01 / Grow your economy</h3><p>Drones mine blue minerals automatically. Train more at the Command Spire. Build an Extractor on a green gas vent, then assign 2–3 drones to it. Cargo must be returned before it is spendable.</p><h3>02 / Build an army</h3><p>Select the Infantry Bay and train Rangers. Add Supply Relays as your population grows. Production reserves supply immediately. Click a queue item to cancel for a full refund.</p><h3>03 / Unlock technology</h3><p>A Research Lab unlocks Lancers and Menders, plus three levels each of weapons, plating, and servos. An Infantry Bay unlocks the Foundry; the Foundry unlocks the Flight Deck.</p></div><div><h3>04 / Command the battlefield</h3><p>Drag to select forces. Right-click to move, attack, gather, or repair. Use attack-move to fight along the route. Bastions can deploy siege artillery, but cannot shoot aircraft. Menders automatically heal nearby allies.</p><h3>05 / Push northeast</h3><p>The enemy starts in the northeast. Scout beyond the fog, secure central mineral fields, and destroy every enemy structure to win. The computer harvests, builds, upgrades, and launches increasingly frequent attacks.</p><h3>Keep your builders working</h3><p>Construction only advances while a drone is nearby. If it dies or leaves, right-click the unfinished structure with another drone. Cancelling refunds 75%. Repairing costs minerals.</p></div></div><div class="help-keys"><b>Right click</b><span>Context order / structure rally point</span><b>A → click</b><span>Attack-move · M → click: move only</span><b>S / H / X</b><span>Stop / Hold / Tank siege mode</span><b>F2 / I</b><span>Select army / next idle drone</span><b>Ctrl + 1–5</b><span>Save group · 1–5: recall · double-tap: center</span><b>Scroll / arrows</b><span>Two-finger scroll pans the map · middle-drag too</span><b>Pinch / wheel</b><span>Zoom · Cmd/Ctrl + scroll also zooms</span><b>Space / P</b><span>Center selection / pause</span><b>Touch</b><span>Tap to select; use Move or Attack-move, then tap a target. Tap the minimap to pan.</span></div><button class="deploy" id="close-help">BACK TO COMMAND <span>↗</span></button></div>',
-    );
+    showModal('help', tpl('tpl-help'));
     $('#close-help').onclick = () => (started ? (game.result ? showResult() : resume()) : showBriefing());
   }
   function showResult() {
     const win = game.result === 'victory',
-      s = game.teams[0].stats;
-    showModal(
-      'result',
-      '<div class="modal-card"><div class="eyebrow">OPERATION COMPLETE / ' +
-        formatTime(game.time) +
-        '</div><h2>' +
-        (win ? 'The basin is yours.' : 'The frontier fought back.') +
-        '</h2><p>' +
-        (win
-          ? 'All opposing structures have fallen. Vanguard command has secured Kestrel Basin.'
-          : 'Your final structure has fallen. Rebuild your strategy, protect your economy, and try again.') +
-        '</p><div class="result-stats"><div><strong>' +
-        s.kills +
-        '</strong><span>HOSTILES ELIMINATED</span></div><div><strong>' +
-        s.trained +
-        '</strong><span>UNITS TRAINED</span></div><div><strong>' +
-        Math.floor(s.gathered) +
-        '</strong><span>RESOURCES GATHERED</span></div></div><div class="launch-row"><button class="deploy" id="play-again">NEW OPERATION <span>↗</span></button><button id="review-btn" style="padding:13px">Review battlefield</button></div></div>',
-    );
+      s = game.teams[0].stats,
+      card = tpl('tpl-result');
+    card.querySelector('#result-meta').textContent = 'OPERATION COMPLETE / ' + formatTime(game.time);
+    card.querySelector('#result-heading').textContent = win ? 'The basin is yours.' : 'The frontier fought back.';
+    card.querySelector('#result-text').textContent = win
+      ? 'All opposing structures have fallen. Vanguard command has secured Kestrel Basin.'
+      : 'Your final structure has fallen. Rebuild your strategy, protect your economy, and try again.';
+    card.querySelector('#stat-kills').textContent = s.kills;
+    card.querySelector('#stat-trained').textContent = s.trained;
+    card.querySelector('#stat-gathered').textContent = Math.floor(s.gathered);
+    showModal('result', card);
     $('#play-again').onclick = async () => {
       if (await operations.save(true)) showBriefing();
     };
