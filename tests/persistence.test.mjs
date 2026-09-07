@@ -103,7 +103,13 @@ test('malformed simulation fields cannot crash the game after being accepted', (
       p.resources[0].amount = -1;
     },
     (p) => {
-      p.visible[0][0] = 2;
+      p.visible[0] = 'not-a-run-list';
+    },
+    (p) => {
+      p.explored[0] = p.explored[0] + ',4704';
+    },
+    (p) => {
+      p.visible[0] = [2];
     },
     (p) => {
       p.difficulty = 'unknown';

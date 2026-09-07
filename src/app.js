@@ -39,6 +39,11 @@
   fog.width = COLS;
   fog.height = ROWS;
   const fc = fog.getContext('2d');
+  let fogGame = null,
+    fogStamp = -1;
+  const miniBase = document.createElement('canvas'),
+    mbc = miniBase.getContext('2d');
+  let miniNext = 0;
   const bg = document.createElement('canvas');
   bg.width = W;
   bg.height = H;
@@ -122,14 +127,20 @@
         StarfallArt.effect(ctx, f);
     }
     StarfallArt.ambient(ctx, camera, cw, ch, game.time);
-    fc.clearRect(0, 0, COLS, ROWS);
-    for (let y = 0; y < ROWS; y++)
-      for (let x = 0; x < COLS; x++) {
-        const i = y * COLS + x;
-        if (game.visible[0][i]) continue;
-        fc.fillStyle = game.explored[0][i] ? '#08131caa' : '#08121df7';
-        fc.fillRect(x, y, 1, 1);
-      }
+    // The fog canvas only repaints when the simulation recomputed vision (~4 Hz), not per frame.
+    if (fogGame !== game || fogStamp !== game.visionStamp) {
+      fogGame = game;
+      fogStamp = game.visionStamp;
+      miniNext = 0;
+      fc.clearRect(0, 0, COLS, ROWS);
+      for (let y = 0; y < ROWS; y++)
+        for (let x = 0; x < COLS; x++) {
+          const i = y * COLS + x;
+          if (game.visible[0][i]) continue;
+          fc.fillStyle = game.explored[0][i] ? '#08131caa' : '#08121df7';
+          fc.fillRect(x, y, 1, 1);
+        }
+    }
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(fog, 0, 0, W, H);
     for (const e of selected())
@@ -228,30 +239,43 @@
       h = mini.height,
       sx = w / W,
       sy = h / H;
-    mc.setTransform(1, 0, 0, 1, 0, 0);
-    mc.fillStyle = '#0a161e';
-    mc.fillRect(0, 0, w, h);
-    mc.globalAlpha = 0.65;
-    mc.drawImage(bg, 0, 0, w, h);
-    mc.globalAlpha = 1;
-    for (let y = 0; y < ROWS; y++)
-      for (let x = 0; x < COLS; x++) {
-        let i = y * COLS + x;
-        if (game.visible[0][i]) continue;
-        mc.fillStyle = game.explored[0][i] ? '#07121a88' : '#06111bef';
-        mc.fillRect(x * TILE * sx, y * TILE * sy, TILE * sx + 0.5, TILE * sy + 0.5);
-      }
-    for (const r of game.resources) {
-      if (!r.amount || !game.explored[0][Math.floor(r.y / TILE) * COLS + Math.floor(r.x / TILE)]) continue;
-      mc.fillStyle = r.type === 'gas' ? '#72bd8c' : '#78bfd0';
-      mc.fillRect(r.x * sx - 1, r.y * sy - 1, 2 * dpr, 2 * dpr);
+    // Terrain, fog, resources and units refresh at ~10 Hz on an offscreen layer;
+    // command pings and the camera box track every frame.
+    const now = performance.now();
+    if (miniBase.width !== w || miniBase.height !== h) {
+      miniBase.width = w;
+      miniBase.height = h;
+      miniNext = 0;
     }
-    for (const e of game.entities)
-      if (game.isVisible(e)) {
-        mc.fillStyle = palette[e.team];
-        const r = (D[e.type].building ? 3 : 1.5) * dpr;
-        mc.fillRect(e.x * sx - r / 2, e.y * sy - r / 2, r, r);
+    if (now >= miniNext) {
+      miniNext = now + 100;
+      mbc.setTransform(1, 0, 0, 1, 0, 0);
+      mbc.fillStyle = '#0a161e';
+      mbc.fillRect(0, 0, w, h);
+      mbc.globalAlpha = 0.65;
+      mbc.drawImage(bg, 0, 0, w, h);
+      mbc.globalAlpha = 1;
+      for (let y = 0; y < ROWS; y++)
+        for (let x = 0; x < COLS; x++) {
+          let i = y * COLS + x;
+          if (game.visible[0][i]) continue;
+          mbc.fillStyle = game.explored[0][i] ? '#07121a88' : '#06111bef';
+          mbc.fillRect(x * TILE * sx, y * TILE * sy, TILE * sx + 0.5, TILE * sy + 0.5);
+        }
+      for (const r of game.resources) {
+        if (!r.amount || !game.explored[0][Math.floor(r.y / TILE) * COLS + Math.floor(r.x / TILE)]) continue;
+        mbc.fillStyle = r.type === 'gas' ? '#72bd8c' : '#78bfd0';
+        mbc.fillRect(r.x * sx - 1, r.y * sy - 1, 2 * dpr, 2 * dpr);
       }
+      for (const e of game.entities)
+        if (game.isVisible(e)) {
+          mbc.fillStyle = palette[e.team];
+          const r = (D[e.type].building ? 3 : 1.5) * dpr;
+          mbc.fillRect(e.x * sx - r / 2, e.y * sy - r / 2, r, r);
+        }
+    }
+    mc.setTransform(1, 0, 0, 1, 0, 0);
+    mc.drawImage(miniBase, 0, 0);
     for (const mark of marks) {
       mc.globalAlpha = mark.life / mark.max;
       mc.fillStyle = MARK_STYLE[mark.kind].color;

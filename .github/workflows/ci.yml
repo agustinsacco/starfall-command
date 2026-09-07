@@ -30,6 +30,8 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm audit
+      - name: Unit tests with coverage floor
+        run: npm run test:coverage
       - name: Workflow lint (pinned actionlint)
         run: |
           curl -fsSLO https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz

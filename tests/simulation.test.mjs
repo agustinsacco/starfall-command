@@ -267,6 +267,7 @@ test('combat, armor, healing, hold orders, siege splash, and aircraft targeting 
   g.updateVision();
   assert.equal(tank.siege, true);
   const x = tank.x;
+  g.bucketize();
   g.combat(tank, 0.1);
   assert.ok(e1.hp < D.ranger.hp);
   assert.ok(e2.hp < D.ranger.hp);
@@ -277,6 +278,7 @@ test('combat, armor, healing, hold orders, siege splash, and aircraft targeting 
   e2.hp = 0;
   tank.cool = 0;
   g.updateVision();
+  g.bucketize();
   g.combat(tank, 0.1);
   assert.equal(air.hp, airHp);
   const before = medic.hp;
@@ -296,11 +298,13 @@ test('move-only does not auto-attack, and unseen enemies cannot be targeted', ()
   g.updateVision();
   g.order([u.id], 'move', u.x + 180, u.y + 100);
   const hp = target.hp;
+  g.bucketize();
   g.combat(u, 0.1);
   assert.equal(target.hp, hp);
   const pos = { x: u.x, y: u.y };
   g.order([u.id], 'hold', 0, 0);
   target.x += 155;
+  g.bucketize();
   g.combat(u, 0.1);
   assert.equal(u.x, pos.x);
   assert.equal(u.y, pos.y);

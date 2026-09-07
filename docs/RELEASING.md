@@ -32,6 +32,12 @@ The script pins all downloads to one tag, requires matching SHA-256 checksums, r
 
 **Trust:** checksums detect damaged or mismatched downloads; they do not replace publisher trust or code-signing certificates. Checksum verification of a binary cannot retroactively authenticate a bootstrap script you have already executed.
 
+Every published installer also carries signed SLSA build provenance. To confirm a download was built by this repository's release workflow on GitHub-hosted runners:
+
+```sh
+gh attestation verify starfall-command-<version>-<platform>.<ext> --repo agustinsacco/starfall-command
+```
+
 Mac releases without Apple credentials are ad-hoc signed, not notarized. macOS may require **System Settings → Privacy & Security → Open Anyway**. Windows installers are unsigned and may trigger SmartScreen. Linux AppImages need FUSE support; use the `.deb` or `--appimage-extract-and-run` if FUSE is unavailable. No in-app updater is included: rerun the installer or download the next release.
 
 ## How releases work

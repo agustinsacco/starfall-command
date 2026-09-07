@@ -268,6 +268,16 @@
   const tuning = (d) => AI[d] || AI.normal;
   const DIST = (a, b) => Math.hypot(a.x - b.x, a.y - b.y),
     clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  // Pathfinding scratch buffers are reused across calls; pathfind never runs reentrantly.
+  const P_COST = new Float32Array(COLS * ROWS),
+    P_PARENT = new Int32Array(COLS * ROWS),
+    P_CLOSED = new Uint8Array(COLS * ROWS);
+  // Spatial-hash cell of 4 tiles; QUERY_PAD covers the largest entity radius plus one tick of drift,
+  // because buckets are keyed by positions from the start of the tick.
+  const BUCKET = TILE * 4,
+    BCOLS = Math.ceil(W / BUCKET),
+    BROWS = Math.ceil(H / BUCKET),
+    QUERY_PAD = 72;
   class Game {
     constructor(difficulty = 'normal', seed = 7481) {
       this.version = 2;
@@ -277,7 +287,11 @@
       this.time = 0;
       this.nextId = 1;
       this.entities = [];
+      this.index = new Map();
       this.resources = [];
+      this.resourceIndex = new Map();
+      this.buckets = new Map();
+      this.visionStamp = 0;
       this.rocks = [];
       this.effects = [];
       this.events = [];
@@ -337,6 +351,7 @@
         [1520, 1610, 69],
       ])
         this.rocks.push({ x, y, r });
+      for (const r of this.resources) this.resourceIndex.set(r.id, r);
       const starts = [
         [440, 1280],
         [2220, 450],
@@ -384,13 +399,15 @@
         rally: null,
       };
       this.entities.push(e);
+      this.index.set(e.id, e);
       return e;
     }
     entity(id) {
-      return this.entities.find((e) => e.id === id && e.hp > 0);
+      const e = this.index.get(id);
+      return e && e.hp > 0 ? e : undefined;
     }
     resource(id) {
-      return this.resources.find((e) => e.id === id);
+      return this.resourceIndex.get(id);
     }
     own(team, type, complete = false) {
       return this.entities.filter(
@@ -544,6 +561,7 @@
       this.teams[e.team].gas += Math.floor(D[e.type].g * BAL.cancelRefund);
       e.hp = 0;
       this.entities = this.entities.filter((x) => x.id !== id);
+      this.index.delete(id);
       this.rebuildGrid();
       return true;
     }
@@ -660,9 +678,9 @@
       if (start < 0 || goal < 0) return [];
       if (start === goal) return this.grid[Math.floor(y / TILE) * COLS + Math.floor(x / TILE)] ? [] : [{ x, y }];
       const heap = [],
-        cost = new Float32Array(COLS * ROWS).fill(Infinity),
-        parent = new Int32Array(COLS * ROWS).fill(-1),
-        closed = new Uint8Array(COLS * ROWS);
+        cost = P_COST.fill(Infinity),
+        parent = P_PARENT.fill(-1),
+        closed = P_CLOSED.fill(0);
       const gx = goal % COLS,
         gy = Math.floor(goal / COLS);
       const h = (n) => Math.hypot((n % COLS) - gx, Math.floor(n / COLS) - gy);
@@ -757,6 +775,29 @@
       if (len < speed * dt + 2) u.path.shift();
       return false;
     }
+    // Rebuilt inside update(); scans stay deterministic because cells iterate row-major and
+    // each bucket preserves entity-array order.
+    bucketize() {
+      this.buckets.clear();
+      for (const e of this.entities) {
+        if (e.hp <= 0) continue;
+        const k = clamp(Math.floor(e.y / BUCKET), 0, BROWS - 1) * BCOLS + clamp(Math.floor(e.x / BUCKET), 0, BCOLS - 1);
+        const b = this.buckets.get(k);
+        if (b) b.push(e);
+        else this.buckets.set(k, [e]);
+      }
+    }
+    eachNear(x, y, r, fn) {
+      const x0 = Math.max(0, Math.floor((x - r) / BUCKET)),
+        x1 = Math.min(BCOLS - 1, Math.floor((x + r) / BUCKET)),
+        y0 = Math.max(0, Math.floor((y - r) / BUCKET)),
+        y1 = Math.min(BROWS - 1, Math.floor((y + r) / BUCKET));
+      for (let by = y0; by <= y1; by++)
+        for (let bx = x0; bx <= x1; bx++) {
+          const b = this.buckets.get(by * BCOLS + bx);
+          if (b) for (const e of b) fn(e);
+        }
+    }
     updateVision() {
       for (let team = 0; team < 2; team++) {
         const v = this.visible[team];
@@ -777,6 +818,7 @@
         }
         for (let i = 0; i < v.length; i++) if (v[i]) this.explored[team][i] = 1;
       }
+      this.visionStamp++;
     }
     isVisible(e, team = 0) {
       return (
@@ -829,24 +871,37 @@
         max: u.type === 'tank' ? 0.28 : 0.13,
       });
       this.damage(t, amount, u);
-      if (u.type === 'tank')
-        for (const other of this.entities)
+      if (u.type === 'tank') {
+        const splash = u.siege ? BAL.siege.splash : BAL.tankSplash;
+        this.eachNear(t.x, t.y, splash + QUERY_PAD, (other) => {
           if (
             other.id !== t.id &&
             other.team !== u.team &&
             other.hp > 0 &&
             !D[other.type].flying &&
-            DIST(other, t) < (u.siege ? BAL.siege.splash : BAL.tankSplash)
+            DIST(other, t) < splash
           )
             this.damage(other, amount * BAL.splashFactor, u);
+        });
+      }
     }
     combat(u, dt) {
       const d = D[u.type];
       if (u.type === 'mender') {
         if (u.order.type === 'move') return false;
-        const target = this.own(u.team)
-          .filter((e) => e.id !== u.id && !D[e.type].building && e.hp < D[e.type].hp && DIST(u, e) < d.range)
-          .sort((a, b) => a.hp / D[a.type].hp - b.hp / D[b.type].hp)[0];
+        const hurt = [];
+        this.eachNear(u.x, u.y, d.range + QUERY_PAD, (e) => {
+          if (
+            e.team === u.team &&
+            e.id !== u.id &&
+            e.hp > 0 &&
+            !D[e.type].building &&
+            e.hp < D[e.type].hp &&
+            DIST(u, e) < d.range
+          )
+            hurt.push(e);
+        });
+        const target = hurt.sort((a, b) => a.hp / D[a.type].hp - b.hp / D[b.type].hp)[0];
         if (target) {
           if (u.cool <= 0) {
             target.hp = Math.min(D[target.type].hp, target.hp + BAL.healAmount);
@@ -863,19 +918,19 @@
       if (target && (!this.isVisible(target, u.team) || (u.type === 'tank' && D[target.type].flying))) target = null;
       if (!target) {
         let best = Infinity;
-        for (const e of this.entities) {
+        const reach = u.order.type === 'hold' || d.building || u.siege ? range : range + BAL.pursuitMargin;
+        this.eachNear(u.x, u.y, reach + QUERY_PAD, (e) => {
           if (e.team === u.team || e.hp <= 0 || !this.isVisible(e, u.team) || (u.type === 'tank' && D[e.type].flying))
-            continue;
-          let dist = DIST(u, e) - D[e.type].r;
-          const reach = u.order.type === 'hold' || d.building || u.siege ? range : range + BAL.pursuitMargin;
+            return;
+          const dist = DIST(u, e) - D[e.type].r;
           if (dist < reach) {
-            let score = dist + (D[e.type].building ? 60 : 0);
+            const score = dist + (D[e.type].building ? 60 : 0);
             if (score < best) {
               best = score;
               target = e;
             }
           }
-        }
+        });
       }
       if (!target) return false;
       let distance = DIST(u, target) - D[target.type].r;
@@ -975,6 +1030,7 @@
         this.updateVision();
         this.visionClock = 0.25;
       }
+      this.bucketize();
       for (const e of this.entities) {
         if (e.hp <= 0) continue;
         e.cool -= dt;
@@ -1024,16 +1080,17 @@
           else this.move(e, t.x, t.y, dt, (d.range || 30) + D[t.type].r);
         }
       }
-      const units = this.entities.filter((e) => e.hp > 0 && !D[e.type].building);
-      for (let i = 0; i < units.length; i++)
-        for (let j = i + 1; j < units.length; j++) {
-          const a = units[i],
-            b = units[j];
-          if (!!D[a.type].flying !== !!D[b.type].flying) continue;
+      // Fresh buckets after movement; the b.id > a.id guard visits each pair once.
+      this.bucketize();
+      for (const a of this.entities) {
+        if (a.hp <= 0 || D[a.type].building) continue;
+        this.eachNear(a.x, a.y, 40, (b) => {
+          if (b.id <= a.id || b.hp <= 0 || D[b.type].building) return;
+          if (!!D[a.type].flying !== !!D[b.type].flying) return;
           let dx = a.x - b.x,
             dy = a.y - b.y,
-            dist = Math.hypot(dx, dy),
-            min = (D[a.type].r + D[b.type].r) * 0.78;
+            dist = Math.hypot(dx, dy);
+          const min = (D[a.type].r + D[b.type].r) * 0.78;
           if (dist < min) {
             if (dist < 0.01) {
               dx = 0.1;
@@ -1046,7 +1103,7 @@
               [b, -1],
             ]) {
               if (u.siege) continue;
-              let x = clamp(u.x + (dx / dist) * push * sign, 8, W - 8),
+              const x = clamp(u.x + (dx / dist) * push * sign, 8, W - 8),
                 y = clamp(u.y + (dy / dist) * push * sign, 8, H - 8);
               if (D[u.type].flying || !this.grid[Math.floor(y / TILE) * COLS + Math.floor(x / TILE)]) {
                 u.x = x;
@@ -1054,9 +1111,18 @@
               }
             }
           }
+        });
+      }
+      let destroyed = false;
+      const alive = [];
+      for (const e of this.entities) {
+        if (e.hp > 0) alive.push(e);
+        else {
+          this.index.delete(e.id);
+          if (D[e.type].building) destroyed = true;
         }
-      const destroyed = this.entities.some((e) => e.hp <= 0 && D[e.type].building);
-      this.entities = this.entities.filter((e) => e.hp > 0);
+      }
+      this.entities = alive;
       if (destroyed) this.rebuildGrid();
       this.effects = this.effects.filter((f) => (f.life -= dt) > 0);
       this.aiClock -= dt;
@@ -1197,8 +1263,8 @@
     save() {
       const copy = {};
       for (const k of STATE_FIELDS) if (this[k] !== undefined) copy[k] = this[k];
-      copy.explored = this.explored.map((v) => Array.from(v));
-      copy.visible = this.visible.map((v) => Array.from(v));
+      copy.explored = this.explored.map(packCells);
+      copy.visible = this.visible.map(packCells);
       return JSON.stringify(copy);
     }
     static load(json) {
@@ -1210,10 +1276,15 @@
       game.version = 2;
       game.mapSeed = p.mapSeed ?? 7481;
       game.grid = new Uint8Array(COLS * ROWS);
-      game.explored = p.explored.map((v) => Uint8Array.from(v));
-      game.visible = p.visible
-        ? p.visible.map((v) => Uint8Array.from(v))
-        : [new Uint8Array(COLS * ROWS), new Uint8Array(COLS * ROWS)];
+      game.index = new Map();
+      for (const e of game.entities) game.index.set(e.id, e);
+      game.resourceIndex = new Map();
+      for (const r of game.resources) game.resourceIndex.set(r.id, r);
+      game.buckets = new Map();
+      game.visionStamp = 0;
+      const toCells = (a) => (typeof a === 'string' ? unpackCells(a) : Uint8Array.from(a));
+      game.explored = p.explored.map(toCells);
+      game.visible = p.visible ? p.visible.map(toCells) : [new Uint8Array(COLS * ROWS), new Uint8Array(COLS * ROWS)];
       game.effects = p.effects || [];
       game.events = p.events || [];
       game.visionClock = p.visionClock ?? 0;
@@ -1246,6 +1317,34 @@
     'effects',
     'events',
   ];
+  // Fog grids serialize as comma-joined run lengths (first run counts zeros): ~30x smaller
+  // than JSON arrays and dependency-free, so old array-form saves still load.
+  function packCells(v) {
+    const runs = [];
+    let val = 0,
+      len = 0;
+    for (let i = 0; i < v.length; i++) {
+      const bit = v[i] ? 1 : 0;
+      if (bit === val) len++;
+      else {
+        runs.push(len);
+        val = bit;
+        len = 1;
+      }
+    }
+    runs.push(len);
+    return runs.join(',');
+  }
+  function unpackCells(s) {
+    const out = new Uint8Array(COLS * ROWS);
+    let i = 0,
+      val = 0;
+    for (const part of s.split(',')) {
+      for (let k = Number(part); k > 0; k--) out[i++] = val;
+      val = 1 - val;
+    }
+    return out;
+  }
   function validateState(p) {
     const fail = () => {
       throw Error('Invalid or incompatible simulation save');
@@ -1255,10 +1354,17 @@
     const num = (v, min = 0, max = 1e9) => Number.isFinite(v) && v >= min && v <= max;
     const int = (v, min = 0, max = 1e9) => Number.isInteger(v) && num(v, min, max);
     const point = (v) => obj(v) && num(v.x, 0, W - 0.001) && num(v.y, 0, H - 0.001);
-    const cells = (v) =>
-      Array.isArray(v) &&
-      v.length === 2 &&
-      v.every((a) => Array.isArray(a) && a.length === COLS * ROWS && a.every((n) => n === 0 || n === 1));
+    const cellArray = (a) => Array.isArray(a) && a.length === COLS * ROWS && a.every((n) => n === 0 || n === 1);
+    const cellRuns = (s) => {
+      if (typeof s !== 'string' || s.length > 40000 || !/^\d+(,\d+)*$/.test(s)) return false;
+      let sum = 0;
+      for (const part of s.split(',')) {
+        sum += Number(part);
+        if (!Number.isInteger(sum) || sum > COLS * ROWS) return false;
+      }
+      return sum === COLS * ROWS;
+    };
+    const cells = (v) => Array.isArray(v) && v.length === 2 && v.every((a) => cellArray(a) || cellRuns(a));
     if (
       !obj(p) ||
       ![1, 2].includes(p.version) ||
